@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usage Report Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0ede8;
+    --border: #ddd9d0;
+    --border2: #c8c3b8;
+    --text: #1a1816;
+    --text2: #6b6560;
+    --text3: #9e9890;
+    --accent: #2c5f2e;
+    --accent-bg: #e8f0e8;
+    --accent-border: #b8d4b8;
+    --danger: #8b2020;
+    --danger-bg: #fdf0f0;
+    --warn-bg: #fdf8ee;
+    --warn-border: #e8d8a0;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Georgia', 'Times New Roman', serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .layout { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* Header */
+  .header { margin-bottom: 2rem; border-bottom: 2px solid var(--text); padding-bottom: 1rem; display: flex; align-items: baseline; gap: 1rem; }
+  .header h1 { font-size: 1.5rem; font-weight: normal; letter-spacing: -.01em; }
+  .header .sub { font-size: .85rem; color: var(--text2); font-family: 'Courier New', monospace; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+  .card-title { font-size: .75rem; font-weight: bold; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+  .card-title .step { background: var(--text); color: var(--bg); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .7rem; flex-shrink: 0; }
+
+  /* Drop zone */
+  .drop-zone { border: 2px dashed var(--border2); border-radius: var(--radius); padding: 2rem 1rem; text-align: center; cursor: pointer; transition: all .2s; background: var(--surface2); }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--accent); background: var(--accent-bg); }
+  .drop-zone .icon { font-size: 2rem; margin-bottom: .5rem; }
+  .drop-zone p { font-size: .9rem; color: var(--text2); }
+  .drop-zone small { font-size: .78rem; color: var(--text3); font-family: 'Courier New', monospace; }
+
+  /* File chips */
+  .file-list { display: flex; flex-direction: column; gap: .4rem; margin-top: .75rem; }
+  .file-chip { display: flex; align-items: center; gap: .5rem; padding: .4rem .75rem; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); font-size: .82rem; }
+  .file-chip .name { flex: 1; font-family: 'Courier New', monospace; color: var(--text); }
+  .file-chip .meta { color: var(--text3); font-size: .75rem; }
+  .file-chip .del { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 1rem; line-height: 1; padding: 0 2px; }
+  .file-chip .del:hover { color: var(--danger); }
+
+  /* Controls */
+  .control-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+  .field { display: flex; flex-direction: column; gap: .3rem; }
+  .field label { font-size: .75rem; color: var(--text2); letter-spacing: .03em; font-family: 'Courier New', monospace; }
+  input[type=number], input[type=date], select {
+    padding: .45rem .6rem; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text);
+    font-family: 'Courier New', monospace; font-size: .85rem; transition: border-color .15s;
+  }
+  input[type=number]:focus, input[type=date]:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  /* Resource checkboxes */
+  .res-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+  .res-header span { font-size: .8rem; color: var(--text2); font-family: 'Courier New', monospace; }
+  .res-header-btns { display: flex; gap: .4rem; }
+  .res-header-btns button { font-size: .72rem; padding: .2rem .6rem; border: 1px solid var(--border2); border-radius: 4px; cursor: pointer; background: var(--surface2); color: var(--text2); font-family: 'Courier New', monospace; }
+  .res-header-btns button:hover { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+  .res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .35rem; max-height: 200px; overflow-y: auto; padding: .2rem; }
+  .res-check { display: flex; align-items: center; gap: .5rem; padding: .35rem .6rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: .82rem; user-select: none; transition: all .15s; }
+  .res-check:hover { background: var(--surface2); border-color: var(--border2); }
+  .res-check.off { opacity: .4; text-decoration: line-through; }
+  .res-check input { cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+
+  /* Advanced filters */
+  .adv-toggle { font-size: .8rem; color: var(--text2); cursor: pointer; padding: .5rem 0; margin-top: .5rem; border-top: 1px solid var(--border); font-family: 'Courier New', monospace; user-select: none; }
+  .adv-toggle:hover { color: var(--accent); }
+  .adv-toggle.on #advArrow { display: inline-block; transform: rotate(90deg); }
+  .adv-panel { padding-top: .75rem; }
+  .adv-panel .field code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: .78rem; }
+  .hint-text { font-size: .72rem; color: var(--text3); font-family: 'Courier New', monospace; }
+  .hint-text.err { color: var(--danger); }
+  .hint-text code { background: var(--surface2); padding: 0 4px; border-radius: 3px; }
+  .wc-mode-row { display: flex; gap: 1.2rem; margin: .5rem 0; }
+  .radio-opt { display: flex; align-items: center; gap: .4rem; font-size: .82rem; cursor: pointer; user-select: none; }
+  .radio-opt input { cursor: pointer; accent-color: var(--accent); }
+  input[type=text] { padding: .45rem .6rem; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: 'Courier New', monospace; font-size: .85rem; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .preset-row { display: flex; gap: .5rem; margin-top: .75rem; align-items: center; }
+  .preset-list { display: flex; flex-direction: column; gap: .4rem; margin-top: .6rem; }
+  .preset-chip { display: flex; align-items: center; gap: .5rem; padding: .45rem .7rem; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); font-size: .8rem; }
+  .preset-chip .pname { flex: 1; font-weight: bold; }
+  .preset-chip .pdesc { color: var(--text3); font-size: .72rem; font-family: 'Courier New', monospace; }
+  .preset-chip .pcount { color: var(--accent); font-size: .75rem; font-family: 'Courier New', monospace; white-space: nowrap; }
+  .preset-chip button { font-size: .72rem; padding: .25rem .6rem; border: 1px solid var(--border2); border-radius: 5px; cursor: pointer; background: var(--surface); color: var(--text2); font-family: 'Courier New', monospace; white-space: nowrap; }
+  .preset-chip button:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-chip button.del:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Report tabs */
+  .tab-bar { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .tab { padding: .4rem .9rem; border: 1px solid var(--border2); border-radius: 20px; font-size: .8rem; cursor: pointer; background: transparent; color: var(--text2); font-family: 'Courier New', monospace; transition: all .15s; }
+  .tab:hover { border-color: var(--accent); color: var(--accent); }
+  .tab.on { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* Stats bar */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; margin-bottom: 1rem; }
+  .stat { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem .8rem; }
+  .stat .lbl { font-size: .7rem; color: var(--text3); font-family: 'Courier New', monospace; margin-bottom: .2rem; }
+  .stat .val { font-size: 1.3rem; font-weight: normal; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  thead th { background: var(--surface2); padding: .55rem .8rem; text-align: left; font-family: 'Courier New', monospace; font-size: .72rem; font-weight: bold; letter-spacing: .04em; color: var(--text2); border-bottom: 1px solid var(--border2); white-space: nowrap; cursor: pointer; user-select: none; }
+  thead th:hover { color: var(--accent); }
+  thead th.num { text-align: right; }
+  tbody td { padding: .5rem .8rem; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+  td.num { text-align: right; font-family: 'Courier New', monospace; }
+
+  /* Pagination */
+  .pager { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; font-size: .8rem; font-family: 'Courier New', monospace; }
+  .pager button { padding: .3rem .7rem; border: 1px solid var(--border2); border-radius: 5px; background: var(--surface); cursor: pointer; color: var(--text2); font-size: .78rem; }
+  .pager button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .pager button:disabled { opacity: .35; cursor: default; }
+  .pager .info { color: var(--text3); flex: 1; text-align: right; }
+
+  /* Export buttons */
+  .export-bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+  .btn { padding: .45rem 1rem; border-radius: var(--radius); font-size: .82rem; cursor: pointer; font-family: 'Courier New', monospace; transition: all .15s; border: 1px solid; }
+  .btn-accent { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-accent:hover { opacity: .85; }
+  .btn-outline { background: transparent; color: var(--text2); border-color: var(--border2); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: scale(.97); }
+  .copy-ok { font-size: .75rem; color: var(--accent); font-family: 'Courier New', monospace; display: none; }
+
+  /* Notice */
+  .notice { padding: .6rem .9rem; border-radius: var(--radius); font-size: .82rem; margin-bottom: .75rem; }
+  .notice.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #7a5f10; }
+  .notice.info { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); font-family: 'Courier New', monospace; }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div class="header">
+    <h1>Usage Report Tool</h1>
+    <span class="sub">Trích xuất báo cáo thống kê sử dụng tài nguyên</span>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card">
+    <div class="card-title"><span class="step">1</span> Tải file CSV đầu vào</div>
+    <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+      <div class="icon">📂</div>
+      <p>Kéo thả hoặc nhấn để chọn file <strong>.csv</strong></p>
+      <small>Hỗ trợ nhiều file — dữ liệu sẽ được ghép tự động</small>
+    </div>
+    <input type="file" id="fi" accept=".csv,.tsv" multiple style="display:none">
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- Step 2: Config -->
+  <div class="card hidden" id="configCard">
+    <div class="card-title"><span class="step">2</span> Tùy chọn lọc dữ liệu</div>
+    <div class="control-grid">
+      <div class="field">
+        <label>Count tối thiểu (≥)</label>
+        <input type="number" id="minCount" value="1" min="0">
+      </div>
+      <div class="field">
+        <label>Từ ngày</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="field">
+        <label>Đến ngày</label>
+        <input type="date" id="dateTo">
+      </div>
+      <div class="field">
+        <label>Nhóm kỳ theo</label>
+        <select id="period">
+          <option value="day">Ngày</option>
+          <option value="month" selected>Tháng</option>
+          <option value="year">Năm</option>
+        </select>
+      </div>
+    </div>
+    <div class="res-header">
+      <span id="resCount">0/0 resource</span>
+      <div class="res-header-btns">
+        <button onclick="selAll(true)">Chọn tất cả</button>
+        <button onclick="selAll(false)">Bỏ chọn tất cả</button>
+      </div>
+    </div>
+    <div class="res-grid" id="resGrid"></div>
+
+    <!-- Advanced filters -->
+    <div class="adv-toggle" onclick="toggleAdv()">
+      <span id="advArrow">▸</span> Lọc nâng cao — độ dài & kiểu Username
+    </div>
+    <div id="advPanel" class="adv-panel hidden">
+      <div class="control-grid">
+        <div class="field">
+          <label>Độ dài Username — tối thiểu</label>
+          <input type="number" id="ulenMin" min="0" placeholder="vd: 1">
+        </div>
+        <div class="field">
+          <label>Độ dài Username — tối đa</label>
+          <input type="number" id="ulenMax" min="0" placeholder="vd: 20">
+        </div>
+        <div class="field">
+          <label>Kiểu ký tự Username</label>
+          <select id="charType">
+            <option value="any">Bất kỳ</option>
+            <option value="digits">Chỉ số (0-9)</option>
+            <option value="letters">Chỉ chữ cái</option>
+            <option value="alnum">Chữ và số</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Áp dụng mẫu chứa cho</label>
+          <select id="wcField">
+            <option value="username">Username</option>
+            <option value="resource">Resource</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:.75rem">
+        <label>Mẫu chứa văn bản — dùng <code>*</code> thay cho nhiều ký tự, <code>?</code> thay cho 1 ký tự (không cần dùng nếu chỉ muốn lọc "chứa từ")</label>
+        <input type="text" id="wcPattern" placeholder="vd: *Healey*  (giữ dòng có chứa &quot;Healey&quot;)" style="width:100%">
+        <div class="wc-mode-row">
+          <label class="radio-opt"><input type="radio" name="wcMode" value="match" checked> Giữ lại dòng khớp mẫu</label>
+          <label class="radio-opt"><input type="radio" name="wcMode" value="exclude"> Loại bỏ dòng khớp mẫu</label>
+        </div>
+        <span class="hint-text">Ví dụ: <code>EIU*</code> = bắt đầu bằng "EIU" · <code>*database*</code> = có chứa "database" · <code>???</code> = đúng 3 ký tự</span>
+      </div>
+      <div class="notice info" id="advSummary" style="display:none"></div>
+
+      <!-- Named filter presets -->
+      <div class="preset-row">
+        <input type="text" id="presetName" placeholder="Đặt tên mẫu lọc (vd: User số, Loại NXB)" style="flex:1">
+        <button class="btn btn-outline" onclick="savePreset()">＋ Lưu mẫu lọc hiện tại</button>
+      </div>
+      <div class="preset-list" id="presetList"></div>
+    </div>
+  </div>
+
+  <!-- Step 3: Report -->
+  <div class="card hidden" id="reportCard">
+    <div class="card-title"><span class="step">3</span> Chọn mẫu báo cáo</div>
+    <div class="tab-bar" id="tabBar"></div>
+    <div id="statsBar" class="stats-bar"></div>
+    <div id="tableArea"></div>
+    <div class="export-bar">
+      <button class="btn btn-accent" onclick="doExport('xlsx')">⬇ Excel (.xlsx)</button>
+      <button class="btn btn-outline" onclick="doExport('csv')">⬇ CSV</button>
+      <button class="btn btn-outline" onclick="doCopy()">⎘ Sao chép bảng</button>
+      <span class="copy-ok" id="copyOk">✓ Đã sao chép!</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let allRows = [];
+let resources = [];
+let excluded = new Set();
+let loadedFiles = [];
+let activeTab = 0;
+let sortCol = null;
+let sortAsc = false;
+let curPage = 0;
+const PAGE = 50;
+let presets = [];   // [{ name, minCount, dateFrom, dateTo, excluded:[...], ulenMin, ulenMax, regexField, regexMode, regexPattern }]
+
+const $ = id => document.getElementById(id);
+
+const TABS = [
+  { id: 'by_resource',        label: 'Theo Resource' },
+  { id: 'by_user',            label: 'Theo User' },
+  { id: 'by_period',          label: 'Theo Kỳ' },
+  { id: 'by_res_period',      label: 'Resource × Kỳ' },
+  { id: 'by_user_resource',   label: 'User × Resource' },
+  { id: 'top_users',          label: 'Top 20 User' },
+];
+
+// ── File handling ─────────────────────────────────────────────────────────────
+
+// RFC 4180-compliant CSV/TSV parser — handles quoted fields containing delimiter or newlines
+function splitRecord(line, sep) {
+  const fields = [];
+  let cur = '', inQ = false, i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (line[i+1] === '"') { cur += '"'; i += 2; }   // escaped quote ""
+        else { inQ = false; i++; }                         // closing quote
+      } else { cur += ch; i++; }
+    } else {
+      if (ch === '"') { inQ = true; i++; }
+      else if (ch === sep) { fields.push(cur.trim()); cur = ''; i++; }
+      else { cur += ch; i++; }
+    }
+  }
+  fields.push(cur.trim());
+  return fields;
+}
+
+function detectSep(t) {
+  // Use header line to detect separator — count unquoted occurrences
+  const line = t.split('\n')[0];
+  const tabs = splitRecord(line, '\t').length;
+  const commas = splitRecord(line, ',').length;
+  return tabs > commas ? '\t' : ',';
+}
+
+function parseCSV(text) {
+  const sep = detectSep(text);
+  // Normalise line endings, then split — but quoted newlines may span lines, so re-join them
+  const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Reassemble records that span multiple lines due to quoted newlines
+  const records = [];
+  let buf = '', inQ = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '"') { inQ = !inQ; buf += ch; }
+    else if (ch === '\n' && !inQ) { if (buf.trim()) records.push(buf); buf = ''; }
+    else { buf += ch; }
+  }
+  if (buf.trim()) records.push(buf);
+
+  if (records.length < 2) return null;
+  const heads = splitRecord(records[0], sep).map(h => h.toLowerCase());
+  const col = (...ns) => { for (const n of ns) { const i = heads.findIndex(h => h === n || h.includes(n)); if (i > -1) return i; } return -1; };
+  const iD = col('date'), iR = col('resource'), iU = col('username','user'), iC = col('count');
+  if ([iD,iR,iU,iC].includes(-1)) return null;
+  return records.slice(1).map(rec => {
+    const p = splitRecord(rec, sep);
+    return { date: p[iD]||'', resource: p[iR]||'', username: p[iU]||'', count: parseInt(p[iC])||0 };
+  }).filter(r => r.resource);
+}
+
+async function readText(file) {
+  return new Promise(r => { const fr = new FileReader(); fr.onload = e => r(e.target.result); fr.readAsText(file, 'UTF-8'); });
+}
+
+async function handleFiles(files) {
+  for (const f of Array.from(files)) {
+    if (loadedFiles.find(x => x.name === f.name)) continue;
+    const text = await readText(f);
+    const rows = parseCSV(text);
+    if (!rows) { alert(`File "${f.name}" không đúng định dạng.\nCần có các cột: Date, Resource, username, Count`); continue; }
+    loadedFiles.push({ name: f.name, size: f.size, rows });
+  }
+  renderFileList();
+  processData();
+}
+
+function removeFile(i) { loadedFiles.splice(i, 1); renderFileList(); processData(); }
+
+function renderFileList() {
+  $('fileList').innerHTML = loadedFiles.map((f, i) => `
+    <div class="file-chip">
+      <span class="name">${f.name}</span>
+      <span class="meta">${f.rows.length.toLocaleString('vi')} dòng · ${(f.size/1024).toFixed(1)} KB</span>
+      <button class="del" onclick="removeFile(${i})" title="Xóa">×</button>
+    </div>`).join('');
+}
+
+// ── Process ───────────────────────────────────────────────────────────────────
+function processData() {
+  if (!loadedFiles.length) {
+    ['configCard','reportCard'].forEach(id => $(id).classList.add('hidden'));
+    return;
+  }
+  allRows = loadedFiles.flatMap(f => f.rows);
+  resources = [...new Set(allRows.map(r => r.resource))].filter(Boolean).sort();
+  excluded = new Set();
+  buildConfig();
+  $('configCard').classList.remove('hidden');
+  refresh();
+  renderPresets();
+}
+
+function buildConfig() {
+  const dates = allRows.map(r => r.date).filter(Boolean).sort();
+  if (dates.length) { $('dateFrom').value = dates[0].slice(0,10); $('dateTo').value = dates[dates.length-1].slice(0,10); }
+  $('resGrid').innerHTML = resources.map(r => `
+    <label class="res-check" id="rc_${esc(r)}">
+      <input type="checkbox" checked onchange="toggleRes('${r.replace(/'/g,"\\'")}')"> ${r}
+    </label>`).join('');
+  updateResCount();
+}
+
+function esc(s) { return s.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function toggleRes(r) {
+  if (excluded.has(r)) excluded.delete(r); else excluded.add(r);
+  const el = document.getElementById('rc_' + esc(r));
+  if (el) { el.classList.toggle('off', excluded.has(r)); el.querySelector('input').checked = !excluded.has(r); }
+  updateResCount();
+  refresh();
+}
+
+function selAll(v) {
+  resources.forEach(r => {
+    if (v) excluded.delete(r); else excluded.add(r);
+    const el = document.getElementById('rc_' + esc(r));
+    if (el) { el.classList.toggle('off', !v); el.querySelector('input').checked = v; }
+  });
+  updateResCount();
+  refresh();
+}
+
+function updateResCount() {
+  const sel = resources.length - excluded.size;
+  $('resCount').textContent = `${sel}/${resources.length} resource được chọn`;
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function getAdvFilters() {
+  return {
+    minCount: parseInt($('minCount').value) || 0,
+    dateFrom: $('dateFrom').value || '',
+    dateTo:   $('dateTo').value   || '',
+    ulenMin:  $('ulenMin').value === '' ? null : parseInt($('ulenMin').value),
+    ulenMax:  $('ulenMax').value === '' ? null : parseInt($('ulenMax').value),
+    charType: $('charType').value,
+    wcField:   $('wcField').value,
+    wcMode:    document.querySelector('input[name=wcMode]:checked').value,
+    wcPattern: $('wcPattern').value.trim()
+  };
+}
+
+// Convert a simple wildcard pattern (* = any chars, ? = one char) to a RegExp.
+// This is the only place regex syntax appears — completely hidden from the user.
+function wildcardToRegex(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const withWildcards = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+  return new RegExp('^' + withWildcards + '$', 'i');
+}
+
+const CHAR_TYPE_TEST = {
+  digits:  s => /^[0-9]+$/.test(s),
+  letters: s => /^[A-Za-zÀ-ỹ]+$/.test(s),
+  alnum:   s => /^[A-Za-z0-9À-ỹ]+$/.test(s),
+  any:     () => true
+};
+
+function applyAdvFilters(rows, f) {
+  let out = rows;
+  if (f.ulenMin != null) out = out.filter(r => r.username.length >= f.ulenMin);
+  if (f.ulenMax != null) out = out.filter(r => r.username.length <= f.ulenMax);
+  if (f.charType && f.charType !== 'any') out = out.filter(r => CHAR_TYPE_TEST[f.charType](r.username));
+  if (f.wcPattern) {
+    // No wildcard chars given → treat as plain "contains" search, wrapped with * automatically
+    const pattern = /[*?]/.test(f.wcPattern) ? f.wcPattern : `*${f.wcPattern}*`;
+    const re = wildcardToRegex(pattern);
+    out = out.filter(r => {
+      const val = f.wcField === 'resource' ? r.resource : r.username;
+      const hit = re.test(val);
+      return f.wcMode === 'exclude' ? !hit : hit;
+    });
+  }
+  return out;
+}
+
+function getFiltered(excludedSet, advOverride) {
+  const exc = excludedSet || excluded;
+  const f = advOverride || getAdvFilters();
+  let out = allRows.filter(r =>
+    !exc.has(r.resource) &&
+    r.count >= f.minCount &&
+    (!f.dateFrom || r.date >= f.dateFrom) &&
+    (!f.dateTo   || r.date <= f.dateTo)
+  );
+  out = applyAdvFilters(out, f);
+  return out;
+}
+
+function toggleAdv() {
+  $('advPanel').classList.toggle('hidden');
+  $('advArrow').parentElement.classList.toggle('on');
+}
+
+// ── Named filter presets ─────────────────────────────────────────────────────
+function savePreset() {
+  const name = $('presetName').value.trim();
+  if (!name) { alert('Vui lòng đặt tên cho mẫu lọc.'); return; }
+  const f = getAdvFilters();
+  const preset = { name, ...f, excluded: [...excluded] };
+  const existingIdx = presets.findIndex(p => p.name === name);
+  if (existingIdx > -1) presets[existingIdx] = preset; else presets.push(preset);
+  $('presetName').value = '';
+  renderPresets();
+}
+
+function deletePreset(i) { presets.splice(i, 1); renderPresets(); }
+
+function applyPreset(i) {
+  const p = presets[i];
+  $('minCount').value = p.minCount;
+  $('dateFrom').value = p.dateFrom;
+  $('dateTo').value = p.dateTo;
+  $('ulenMin').value = p.ulenMin ?? '';
+  $('ulenMax').value = p.ulenMax ?? '';
+  $('charType').value = p.charType || 'any';
+  $('wcField').value = p.wcField || 'username';
+  document.querySelector(`input[name=wcMode][value="${p.wcMode||'match'}"]`).checked = true;
+  $('wcPattern').value = p.wcPattern || '';
+  excluded = new Set(p.excluded);
+  resources.forEach(r => {
+    const el = document.getElementById('rc_' + esc(r));
+    if (el) { el.classList.toggle('off', excluded.has(r)); el.querySelector('input').checked = !excluded.has(r); }
+  });
+  updateResCount();
+  curPage = 0;
+  refresh();
+}
+
+function presetRowCount(p) {
+  return getFiltered(new Set(p.excluded), p).length;
+}
+
+const CHAR_TYPE_LABEL = { digits: 'chỉ số', letters: 'chỉ chữ', alnum: 'chữ+số', any: '' };
+
+function renderPresets() {
+  const el = $('presetList');
+  if (!presets.length) { el.innerHTML = ''; return; }
+  el.innerHTML = presets.map((p, i) => {
+    const n = allRows.length ? presetRowCount(p) : 0;
+    const descBits = [];
+    if (p.minCount) descBits.push(`Count≥${p.minCount}`);
+    if (p.ulenMin != null || p.ulenMax != null) descBits.push(`độ dài ${p.ulenMin ?? 0}-${p.ulenMax ?? '∞'}`);
+    if (p.charType && p.charType !== 'any') descBits.push(CHAR_TYPE_LABEL[p.charType]);
+    if (p.wcPattern) descBits.push(`${p.wcMode==='exclude'?'loại':'chứa'} "${p.wcPattern}" trên ${p.wcField==='resource'?'Resource':'Username'}`);
+    return `
+    <div class="preset-chip">
+      <span class="pname">${p.name}</span>
+      <span class="pdesc">${descBits.join(' · ') || 'không có điều kiện nâng cao'}</span>
+      <span class="pcount">${n.toLocaleString('vi')} dòng</span>
+      <button onclick="applyPreset(${i})">Áp dụng</button>
+      <button onclick="exportPreset(${i},'xlsx')">⬇ Excel</button>
+      <button onclick="exportPreset(${i},'csv')">⬇ CSV</button>
+      <button class="del" onclick="deletePreset(${i})">Xóa</button>
+    </div>`;
+  }).join('');
+}
+
+function exportPreset(i, fmt) {
+  const p = presets[i];
+  const rows = getFiltered(new Set(p.excluded), p);
+  if (!rows.length) { alert('Mẫu lọc "' + p.name + '" không có dòng dữ liệu nào phù hợp.'); return; }
+  const heads = ['Date','Resource','Username','Count'];
+  const data = rows.map(r => ({ Date: r.date, Resource: r.resource, Username: r.username, Count: r.count }));
+  const fname = 'mau_loc_' + p.name.replace(/[^a-zA-Z0-9À-ỹ]+/g,'_');
+  exportTable(heads, data, fname, fmt);
+}
+
+function periodKey(d, p) {
+  if (!d) return 'N/A';
+  if (p === 'day')   return d.slice(0,10);
+  if (p === 'month') return d.slice(0,7);
+  return d.slice(0,4);
+}
+
+// ── Aggregate ─────────────────────────────────────────────────────────────────
+function grp(rows, keyFn) {
+  const m = new Map();
+  rows.forEach(r => {
+    const k = keyFn(r);
+    const e = m.get(k) || { count: 0, users: new Set() };
+    e.count += r.count; e.users.add(r.username);
+    m.set(k, e);
+  });
+  return m;
+}
+
+function buildData(rows, tabId) {
+  const p = $('period').value;
+  if (tabId === 'by_resource') {
+    return { heads: ['Resource','Lượt sử dụng','Số user','TB/user'],
+      nums: new Set(['Lượt sử dụng','Số user','TB/user']),
+      data: [...grp(rows, r => r.resource)].map(([k,v]) => ({
+        'Resource': k, 'Lượt sử dụng': v.count, 'Số user': v.users.size,
+        'TB/user': v.users.size ? +(v.count/v.users.size).toFixed(1) : 0
+      }))
+    };
+  }
+  if (tabId === 'by_user') {
+    const dayMap = new Map(), resMap = new Map();
+    rows.forEach(r => {
+      const ds = dayMap.get(r.username) || new Set(); ds.add(r.date); dayMap.set(r.username, ds);
+      const rs = resMap.get(r.username) || new Set(); rs.add(r.resource); resMap.set(r.username, rs);
+    });
+    return { heads: ['Username','Lượt sử dụng','Số resource','Số ngày HĐ'],
+      nums: new Set(['Lượt sử dụng','Số resource','Số ngày HĐ']),
+      data: [...grp(rows, r => r.username)].map(([k,v]) => ({
+        'Username': k, 'Lượt sử dụng': v.count,
+        'Số resource': resMap.get(k)?.size||0, 'Số ngày HĐ': dayMap.get(k)?.size||0
+      }))
+    };
+  }
+  if (tabId === 'by_period') {
+    const rMap = new Map();
+    rows.forEach(r => { const k=periodKey(r.date,p); const s=rMap.get(k)||new Set(); s.add(r.resource); rMap.set(k,s); });
+    return { heads: ['Kỳ','Lượt sử dụng','Số user HĐ','Số resource'],
+      nums: new Set(['Lượt sử dụng','Số user HĐ','Số resource']),
+      data: [...grp(rows, r => periodKey(r.date,p))].map(([k,v]) => ({
+        'Kỳ': k, 'Lượt sử dụng': v.count, 'Số user HĐ': v.users.size, 'Số resource': rMap.get(k)?.size||0
+      }))
+    };
+  }
+  if (tabId === 'by_res_period') {
+    return { heads: ['Resource','Kỳ','Lượt sử dụng','Số user'],
+      nums: new Set(['Lượt sử dụng','Số user']),
+      data: [...grp(rows, r => r.resource+'|||'+periodKey(r.date,p))].map(([k,v]) => {
+        const [res,per] = k.split('|||');
+        return { 'Resource': res, 'Kỳ': per, 'Lượt sử dụng': v.count, 'Số user': v.users.size };
+      })
+    };
+  }
+  if (tabId === 'by_user_resource') {
+    return { heads: ['Username','Resource','Lượt sử dụng'],
+      nums: new Set(['Lượt sử dụng']),
+      data: [...grp(rows, r => r.username+'|||'+r.resource)].map(([k,v]) => {
+        const [u,r] = k.split('|||');
+        return { 'Username': u, 'Resource': r, 'Lượt sử dụng': v.count };
+      })
+    };
+  }
+  if (tabId === 'top_users') {
+    const rcMap = new Map();
+    rows.forEach(r => { const k=r.username+'|'+r.resource; rcMap.set(k,(rcMap.get(k)||0)+r.count); });
+    const sorted = [...grp(rows, r => r.username)].sort((a,b) => b[1].count-a[1].count).slice(0,20);
+    return { heads: ['Hạng','Username','Lượt sử dụng','Resource nhiều nhất'],
+      nums: new Set(['Hạng','Lượt sử dụng']),
+      data: sorted.map(([u,v],i) => {
+        let top='', topC=0;
+        resources.forEach(res => { const c=rcMap.get(u+'|'+res)||0; if(c>topC){topC=c;top=res;} });
+        return { 'Hạng': i+1, 'Username': u, 'Lượt sử dụng': v.count, 'Resource nhiều nhất': top||'-' };
+      })
+    };
+  }
+  return { heads:[], nums: new Set(), data:[] };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+let currentData = null;
+
+function refresh() {
+  if ($('advSummary')) updateAdvSummary();
+  const rows = getFiltered();
+  if (!rows.length) { $('reportCard').classList.add('hidden'); return; }
+  $('reportCard').classList.remove('hidden');
+
+  // tabs
+  $('tabBar').innerHTML = TABS.map((t,i) =>
+    `<button class="tab${i===activeTab?' on':''}" onclick="setTab(${i})">${t.label}</button>`).join('');
+
+  // stats
+  const total = rows.reduce((s,r) => s+r.count, 0);
+  const users = new Set(rows.map(r=>r.username)).size;
+  const resN  = new Set(rows.map(r=>r.resource)).size;
+  const dates = [...new Set(rows.map(r=>r.date))].length;
+  $('statsBar').innerHTML = [
+    ['Tổng lượt sử dụng', total.toLocaleString('vi')],
+    ['Dòng dữ liệu',      rows.length.toLocaleString('vi')],
+    ['Số user',           users.toLocaleString('vi')],
+    ['Resource · Kỳ',     resN + ' · ' + dates],
+  ].map(([l,v]) => `<div class="stat"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
+
+  // build & sort data
+  const { heads, nums, data } = buildData(rows, TABS[activeTab].id);
+  if (sortCol && heads.includes(sortCol)) {
+    data.sort((a,b) => {
+      const va=a[sortCol], vb=b[sortCol];
+      const n = typeof va==='number';
+      const cmp = n ? va-vb : String(va).localeCompare(String(vb),'vi');
+      return sortAsc ? cmp : -cmp;
+    });
+  } else {
+    const numHead = heads.find(h => nums.has(h) && h !== 'Hạng');
+    if (numHead) data.sort((a,b) => (b[numHead]||0)-(a[numHead]||0));
+  }
+
+  currentData = { heads, nums, data };
+
+  // paginate
+  const total_rows = data.length;
+  const page_data  = data.slice(curPage*PAGE, (curPage+1)*PAGE);
+
+  const thHtml = heads.map(h => {
+    const n = nums.has(h);
+    const arrow = sortCol===h ? (sortAsc?' ▲':' ▼') : '';
+    return `<th class="${n?'num':''}" onclick="doSort('${h}')">${h}${arrow}</th>`;
+  }).join('');
+
+  const tbHtml = page_data.map(row =>
+    '<tr>'+heads.map(h => {
+      const v = row[h];
+      const n = nums.has(h);
+      const disp = typeof v==='number' ? v.toLocaleString('vi') : (v??'—');
+      return `<td class="${n?'num':''}">${disp}</td>`;
+    }).join('')+'</tr>'
+  ).join('') || `<tr><td colspan="${heads.length}" style="text-align:center;padding:1.5rem;color:var(--text3)">Không có dữ liệu</td></tr>`;
+
+  const pager = total_rows > PAGE ? `
+    <div class="pager">
+      <button onclick="goPage(-1)" ${curPage===0?'disabled':''}>‹ Trước</button>
+      <button onclick="goPage(1)"  ${(curPage+1)*PAGE>=total_rows?'disabled':''}>Tiếp ›</button>
+      <span class="info">Trang ${curPage+1} / ${Math.ceil(total_rows/PAGE)} &nbsp;·&nbsp; ${total_rows.toLocaleString('vi')} dòng</span>
+    </div>` : `<div style="font-size:.75rem;color:var(--text3);margin-top:.5rem;font-family:'Courier New',monospace">${total_rows.toLocaleString('vi')} dòng</div>`;
+
+  $('tableArea').innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr>${thHtml}</tr></thead>
+      <tbody>${tbHtml}</tbody>
+    </table></div>${pager}`;
+}
+
+function setTab(i) { activeTab=i; sortCol=null; curPage=0; refresh(); }
+function doSort(col) {
+  if (sortCol===col) sortAsc=!sortAsc; else { sortCol=col; sortAsc=false; }
+  curPage=0; refresh();
+}
+function goPage(d) { curPage+=d; refresh(); }
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportName() { return 'bao_cao_' + TABS[activeTab].id; }
+
+function exportTable(heads, data, filenameBase, fmt) {
+  if (fmt === 'xlsx') {
+    const ws = XLSX.utils.json_to_sheet(data, { header: heads });
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r:0, c:C });
+      if (!ws[addr]) continue;
+      ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0EDE8' } } };
+    }
+    ws['!cols'] = heads.map(h => ({ wch: Math.max(h.length+2, ...data.map(r=>String(r[h]??'').length)) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Báo cáo');
+    XLSX.writeFile(wb, filenameBase+'.xlsx');
+  } else {
+    let csv = '\uFEFF' + heads.join(',') + '\n';
+    data.forEach(r => { csv += heads.map(h => { const v=r[h]??''; return String(v).includes(',')?`"${v}"`:v; }).join(',') + '\n'; });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    a.download = filenameBase+'.csv';
+    a.click();
+  }
+}
+
+function doExport(fmt) {
+  if (!currentData?.data.length) return;
+  exportTable(currentData.heads, currentData.data, exportName(), fmt);
+}
+
+function doCopy() {
+  if (!currentData?.data.length) return;
+  const { heads, data } = currentData;
+  const tsv = [heads.join('\t'), ...data.map(r => heads.map(h => r[h]??'').join('\t'))].join('\n');
+  navigator.clipboard.writeText(tsv).then(() => {
+    const el = $('copyOk');
+    el.style.display = 'inline';
+    setTimeout(() => el.style.display = 'none', 2000);
+  });
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+const dz = $('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+$('fi').addEventListener('change', e => handleFiles(e.target.files));
+['minCount','dateFrom','dateTo','period'].forEach(id => $(id).addEventListener('change', () => { curPage=0; refresh(); }));
+['ulenMin','ulenMax'].forEach(id => $(id).addEventListener('input', () => { curPage=0; refresh(); }));
+['charType','wcField'].forEach(id => $(id).addEventListener('change', () => { curPage=0; refresh(); }));
+document.querySelectorAll('input[name=wcMode]').forEach(r => r.addEventListener('change', () => { curPage=0; refresh(); }));
+$('wcPattern').addEventListener('input', () => { curPage=0; refresh(); });
+
+function updateAdvSummary() {
+  if (!allRows.length) return;
+  const f = getAdvFilters();
+  const before = allRows.filter(r => !excluded.has(r.resource) && r.count >= f.minCount &&
+    (!f.dateFrom || r.date >= f.dateFrom) && (!f.dateTo || r.date <= f.dateTo));
+  const after = applyAdvFilters(before, f);
+  const box = $('advSummary');
+  if (f.ulenMin == null && f.ulenMax == null && f.charType === 'any' && !f.wcPattern) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.textContent = `Lọc nâng cao: ${before.length.toLocaleString('vi')} → ${after.length.toLocaleString('vi')} dòng (loại ${(before.length-after.length).toLocaleString('vi')} dòng)`;
+}
+</script>
+</body>
+</html>
