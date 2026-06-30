@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phân tích log đăng nhập</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#0d0f14; --surface:#161a23; --surface2:#1e2331;
+    --border:#2a3045; --accent:#4f8ef7; --accent2:#38d9a9;
+    --warn:#f5a623; --text:#e8ecf4; --muted:#7a8299; --danger:#e25c5c;
+    --mono:'IBM Plex Mono',monospace; --sans:'DM Sans',sans-serif;
+    --radius:10px; --radius-lg:16px;
+  }
+  body { font-family:var(--sans); background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+  header { padding:1.25rem 2rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.75rem; background:var(--surface); }
+  .logo { width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center; }
+  .logo svg { width:18px;height:18px;fill:#fff; }
+  .brand h1 { font-size:.95rem;font-weight:600; }
+  .brand p  { font-size:.7rem;color:var(--muted);font-weight:300; }
+  main { flex:1;display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 65px); }
+  aside { background:var(--surface);border-right:1px solid var(--border);padding:1.25rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.25rem; }
+  .lbl { font-size:.63rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem; }
+  #dropzone { border:1.5px dashed var(--border);border-radius:var(--radius-lg);padding:1.75rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative; }
+  #dropzone:hover,#dropzone.drag-over { border-color:var(--accent);background:rgba(79,142,247,.07); }
+  #dropzone input[type=file] { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%; }
+  #dropzone .dz-icon { font-size:1.75rem;color:var(--accent);display:block;margin-bottom:.5rem; }
+  #dropzone .dz-t { font-size:.82rem;font-weight:500;margin-bottom:.25rem; }
+  #dropzone .dz-s { font-size:.7rem;color:var(--muted); }
+  #file-status { font-size:.72rem;color:var(--accent2);font-family:var(--mono);margin-top:.5rem;display:none;word-break:break-all; }
+  .cg { display:flex;flex-direction:column;gap:.4rem; }
+  .cg label { font-size:.76rem;color:var(--muted); }
+  .cg select { background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.83rem;padding:.45rem .7rem;border-radius:var(--radius);width:100%;outline:none;transition:border-color .2s; }
+  .cg select:focus { border-color:var(--accent); }
+  .btn { display:flex;align-items:center;justify-content:center;gap:.5rem;font-family:var(--sans);font-size:.83rem;font-weight:500;border:none;border-radius:var(--radius);cursor:pointer;padding:.6rem 1rem;transition:all .18s;width:100%; }
+  .btn-primary { background:var(--accent);color:#fff; }
+  .btn-primary:hover { background:#3a7ef5; }
+  .btn-primary:disabled { background:#2a3350;color:var(--muted);cursor:not-allowed; }
+  .btn-secondary { background:var(--surface2);color:var(--text);border:1px solid var(--border); }
+  .btn-secondary:hover { border-color:var(--accent);color:var(--accent); }
+  .btn-secondary:disabled { opacity:.4;cursor:not-allowed; }
+  .stats-grid { display:grid;grid-template-columns:1fr 1fr;gap:.5rem; }
+  .stat-card { background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.65rem; }
+  .stat-card .s-l { font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em; }
+  .stat-card .s-v { font-size:1.3rem;font-weight:600;font-family:var(--mono);margin-top:.15rem;color:var(--accent); }
+  .s-v.green{color:var(--accent2);} .s-v.warn{color:var(--warn);}
+  section.content { display:flex;flex-direction:column;overflow:hidden; }
+
+  .tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface); display:none; }
+  .tab-btn { flex:1; padding:.7rem 1rem; background:none; border:none; color:var(--muted); font-family:var(--sans); font-size:.8rem; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all .15s; }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-panel { display:none; flex:1; overflow:hidden; flex-direction:column; }
+  .tab-panel.active { display:flex; }
+
+  .toolbar { padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.65rem;background:var(--surface);flex-wrap:wrap; }
+  .sw { position:relative;flex:1;min-width:140px; }
+  .sw svg { position:absolute;left:.55rem;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--muted);pointer-events:none; }
+  .sw input[type=search] { width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.8rem;padding:.45rem .7rem .45rem 1.85rem;border-radius:var(--radius);outline:none;transition:border-color .2s; }
+  .sw input:focus { border-color:var(--accent); }
+  .sort-btn { background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.78rem;padding:.45rem .8rem;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;gap:.35rem;white-space:nowrap;transition:all .18s; }
+  .sort-btn:hover { border-color:var(--accent);color:var(--accent); }
+  .sort-btn svg { width:13px;height:13px;transition:transform .2s; }
+  .sort-btn.asc svg.si { transform:rotate(180deg); }
+
+  .table-wrap { flex:1;overflow:auto; }
+  table { width:100%;border-collapse:collapse;font-size:.8rem; }
+  thead th { position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--border);padding:.6rem 1.1rem;text-align:left;font-size:.65rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap; }
+  thead th.right { text-align:right; }
+  tbody tr { border-bottom:1px solid var(--border);transition:background .12s; }
+  tbody tr:hover { background:var(--surface2); }
+  tbody td { padding:.55rem 1.1rem; }
+  tbody td:first-child { color:var(--muted);font-family:var(--mono);font-size:.72rem; }
+  .uid { font-family:var(--mono);font-size:.77rem;word-break:break-all; }
+  .email { color:var(--accent); }
+  td.cc { text-align:right; }
+  .cb { display:inline-flex;align-items:center;justify-content:flex-end;gap:.45rem; }
+  .bar { display:inline-block;height:5px;border-radius:3px;background:var(--accent);opacity:.35;min-width:2px; }
+  .bar.pat { background:var(--accent2); }
+  .cn { font-family:var(--mono);font-weight:500; }
+  .rb { font-size:.62rem;font-family:var(--mono);font-weight:600;padding:.12rem .35rem;border-radius:4px;margin-left:3px; }
+  .r1{background:rgba(245,166,35,.2);color:var(--warn);} .r2{background:rgba(232,236,244,.1);color:#bcc3d8;} .r3{background:rgba(205,127,50,.15);color:#c98a4b;}
+  .pat-badge { font-family:var(--mono); font-size:.74rem; font-weight:600; background:rgba(79,142,247,.15); color:var(--accent); padding:.2rem .55rem; border-radius:6px; display:inline-block; }
+
+  .placeholder { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.85rem;color:var(--muted);padding:3rem;text-align:center; }
+  .placeholder svg { width:48px;height:48px;opacity:.2; }
+  .placeholder p { font-size:.82rem;line-height:1.6; }
+  #pb-wrap { height:3px;background:var(--border);display:none; }
+  #pb { height:100%;background:var(--accent);width:0%;transition:width .2s; }
+  #toast { position:fixed;bottom:1.25rem;right:1.25rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.79rem;padding:.65rem 1rem;border-radius:var(--radius);display:none;align-items:center;gap:.5rem;z-index:999;max-width:300px; }
+  #toast.show{display:flex;} #toast.success{border-color:var(--accent2);} #toast.error{border-color:var(--danger);}
+  .export-section { margin-top:auto;padding-top:.75rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.45rem; }
+
+  .pattern-box { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:.7rem; }
+  .pattern-row { display:flex; flex-direction:column; gap:.35rem; padding:.55rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; margin-bottom:.5rem; }
+  .pattern-row .pr-top { display:flex; gap:.4rem; align-items:center; }
+  .pattern-row input[type=text] {
+    flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:.78rem; padding:.4rem .55rem; border-radius:6px; outline:none;
+  }
+  .pattern-row input[type=text]:focus { border-color:var(--accent); }
+  .pattern-row input[type=text].invalid { border-color:var(--danger); }
+  .pattern-row .del-btn {
+    background:var(--surface); border:1px solid var(--border); color:var(--muted);
+    border-radius:6px; width:28px; height:28px; cursor:pointer; transition:all .15s; flex-shrink:0;
+  }
+  .pattern-row .del-btn:hover { border-color:var(--danger); color:var(--danger); }
+  .pr-options { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .pr-mode-select {
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--sans); font-size:.7rem; padding:.25rem .4rem; border-radius:5px; outline:none; cursor:pointer;
+  }
+  .pr-mode-select:focus { border-color:var(--accent); }
+  .pr-length-wrap { display:flex; align-items:center; gap:.3rem; }
+  .pr-length-wrap label { font-size:.68rem; color:var(--muted); white-space:nowrap; }
+  .pr-length-wrap input[type=number] {
+    width:48px; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:.72rem; padding:.25rem .35rem; border-radius:5px; outline:none;
+  }
+  .pr-length-wrap input[type=number]:focus { border-color:var(--accent); }
+  .pr-error { font-size:.66rem; color:var(--danger); display:none; }
+  .pr-error.show { display:block; }
+  .pattern-hint { font-size:.68rem; color:var(--muted); line-height:1.5; margin-top:.3rem; }
+  .pattern-hint code { font-family:var(--mono); background:var(--bg); padding:1px 5px; border-radius:4px; color:var(--accent2); }
+  #add-pattern-btn {
+    background:none; border:1px dashed var(--border); color:var(--muted);
+    font-size:.76rem; padding:.4rem; border-radius:6px; cursor:pointer; width:100%;
+    transition:all .15s; margin-top:.2rem;
+  }
+  #add-pattern-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  .pat-summary-grid { padding:1rem 1.25rem; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.65rem; border-bottom:1px solid var(--border); }
+  .pat-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:.75rem; display:flex; flex-direction:column; }
+  .pat-card .pc-pattern { font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--accent); margin-bottom:.3rem; word-break:break-all; }
+  .pat-card .pc-count { font-size:1.4rem; font-weight:600; font-family:var(--mono); }
+  .pat-card .pc-sub { font-size:.66rem; color:var(--muted); margin-top:.15rem; }
+  .pat-card .pc-bar-track { height:4px; background:var(--border); border-radius:2px; margin-top:.5rem; overflow:hidden; }
+  .pat-card .pc-bar-fill { height:100%; background:var(--accent2); border-radius:2px; }
+  .pat-card .pc-dl {
+    margin-top:.6rem; background:var(--surface); border:1px solid var(--border); color:var(--muted);
+    font-family:var(--sans); font-size:.68rem; padding:.35rem; border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:.3rem; transition:all .15s;
+  }
+  .pat-card .pc-dl:hover { border-color:var(--accent); color:var(--accent); }
+  .pat-card .pc-dl svg { width:11px; height:11px; }
+  .pat-card .pc-dl:disabled { opacity:.4; cursor:not-allowed; }
+
+  ::-webkit-scrollbar{width:5px;height:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><svg viewBox="0 0 24 24"><path d="M3 3h18v3H3V3zm0 5h12v2H3V8zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg></div>
+  <div class="brand"><h1>Phân tích log đăng nhập</h1><p>DSpace EPersonRestAuthenticationProvider · Thống kê người dùng & nhóm tài khoản</p></div>
+</header>
+<main>
+  <aside>
+    <div>
+      <div class="lbl">File log</div>
+      <div id="dropzone">
+        <input type="file" id="fi" accept=".txt,.log">
+        <span class="dz-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28"><path stroke-linecap="round" d="M12 16.5v-9m0 0l-3.75 3.75M12 7.5l3.75 3.75M3 17.25A2.25 2.25 0 005.25 19.5h13.5A2.25 2.25 0 0021 17.25V15"/></svg>
+        </span>
+        <div class="dz-t">Kéo thả hoặc nhấp để chọn</div>
+        <div class="dz-s">.txt / .log · DSpace EPersonAuthProvider</div>
+      </div>
+      <div id="file-status"></div>
+    </div>
+
+    <div class="cg">
+      <label>Loại login</label>
+      <select id="lt"><option value="explicit">explicit</option><option value="implicit">implicit</option><option value="">Tất cả</option></select>
+    </div>
+
+    <div>
+      <div class="lbl">Mẫu tài khoản cần thống kê</div>
+      <div class="pattern-box">
+        <div id="pattern-list"></div>
+        <button id="add-pattern-btn">+ Thêm mẫu</button>
+        <div class="pattern-hint">
+          <strong>Wildcard</strong>: <code>*</code> thay cho ký tự bất kỳ, vd <code>18*</code>.<br>
+          <strong>Độ dài</strong>: lọc theo tiền tố + tổng số ký tự, vd tiền tố <code>18</code>, độ dài <code>13</code>.<br>
+          <strong>Regex</strong>: biểu thức chính quy đầy đủ, vd <code>^18\d{11}$</code>.
+        </div>
+      </div>
+    </div>
+
+    <div><button class="btn btn-primary" id="btn-a" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+      Phân tích log
+    </button></div>
+
+    <div id="ss" style="display:none">
+      <div class="lbl">Tổng quan</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="s-l">Người dùng</div><div class="s-v green" id="su">0</div></div>
+        <div class="stat-card"><div class="s-l">Tổng lượt</div><div class="s-v" id="sl">0</div></div>
+        <div class="stat-card"><div class="s-l">Dòng log</div><div class="s-v warn" id="sli">0</div></div>
+        <div class="stat-card"><div class="s-l">Hiển thị</div><div class="s-v" id="sh">0</div></div>
+      </div>
+    </div>
+
+    <div id="es" class="export-section" style="display:none">
+      <div class="lbl">Xuất kết quả</div>
+      <button class="btn btn-secondary" id="btn-csv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Tải về CSV
+      </button>
+      <button class="btn btn-secondary" id="btn-xl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M3 9h18M9 21V9"/></svg>Tải về Excel (TSV)
+      </button>
+      <button class="btn btn-secondary" id="btn-cp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2"/><path stroke-linecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy (TSV)
+      </button>
+    </div>
+  </aside>
+
+  <section class="content">
+    <div id="pb-wrap"><div id="pb"></div></div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="detail">Chi tiết người dùng</button>
+      <button class="tab-btn" data-tab="pattern">Thống kê theo mẫu</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-detail">
+      <div class="toolbar">
+        <div class="sw">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="si" placeholder="Tìm mã số hoặc email...">
+        </div>
+        <button class="sort-btn" id="sb">
+          <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>
+          Nhiều nhất
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table aria-label="Thống kê login">
+          <thead><tr><th style="width:54px">#</th><th>Mã số / Email người dùng</th><th class="right" style="width:150px">Số lần đăng nhập</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-pattern">
+      <div class="pat-summary-grid" id="pat-summary"></div>
+      <div class="toolbar">
+        <div class="sw">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="si2" placeholder="Tìm mã số hoặc email...">
+        </div>
+        <button class="sort-btn" id="sb2">
+          <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>
+          Nhiều nhất
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table aria-label="Thống kê theo mẫu">
+          <thead><tr><th style="width:54px">#</th><th>Mã số / Email người dùng</th><th style="width:120px">Mẫu khớp</th><th class="right" style="width:150px">Số lần đăng nhập</th></tr></thead>
+          <tbody id="tbody2"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="placeholder" id="ph">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p>Chọn file log DSpace (.txt) từ máy tính, cấu hình mẫu tài khoản cần lọc,<br>rồi nhấn <strong>Phân tích log</strong> để bắt đầu.</p>
+    </div>
+  </section>
+</main>
+<div id="toast" role="alert" aria-live="polite"></div>
+
+<script>
+(function(){
+  let rows=[],filtered=[],sortDesc=true,raw='',maxC=1;
+  let patFiltered=[],patSortDesc=true,patternResults=[];
+
+  const dz=document.getElementById('dropzone'),fi=document.getElementById('fi'),
+    fs=document.getElementById('file-status'),ba=document.getElementById('btn-a'),
+    lt=document.getElementById('lt'),ss=document.getElementById('ss'),
+    es=document.getElementById('es'),ph=document.getElementById('ph'),
+    tbody=document.getElementById('tbody'),si=document.getElementById('si'),
+    sb=document.getElementById('sb'),pbw=document.getElementById('pb-wrap'),
+    pb=document.getElementById('pb'),tabs=document.getElementById('tabs'),
+    tbody2=document.getElementById('tbody2'),si2=document.getElementById('si2'),
+    sb2=document.getElementById('sb2'),patSummary=document.getElementById('pat-summary'),
+    patternList=document.getElementById('pattern-list');
+
+  const DEFAULT_PATTERNS = [
+    { mode: 'wildcard', value: '18*', prefix: '', length: '' },
+    { mode: 'wildcard', value: '16*', prefix: '', length: '' },
+    { mode: 'wildcard', value: '19*', prefix: '', length: '' },
+  ];
+
+  let patternRowId = 0;
+
+  function addPatternRow(cfg) {
+    cfg = cfg || { mode: 'wildcard', value: '', prefix: '', length: '' };
+    const id = 'pr' + (patternRowId++);
+    const row = document.createElement('div');
+    row.className = 'pattern-row';
+    row.dataset.id = id;
+    row.innerHTML = `
+      <div class="pr-top">
+        <select class="pr-mode-select" data-role="mode">
+          <option value="wildcard">Wildcard (*)</option>
+          <option value="length">Tiền tố + độ dài</option>
+          <option value="regex">Regex</option>
+        </select>
+        <button class="del-btn" title="Xóa mẫu" data-role="del">✕</button>
+      </div>
+      <div class="pr-body" data-role="body"></div>
+      <div class="pr-error" data-role="err"></div>
+    `;
+    patternList.appendChild(row);
+
+    const modeSelect = row.querySelector('[data-role=mode]');
+    modeSelect.value = cfg.mode;
+    modeSelect.addEventListener('change', () => renderRowBody(row, modeSelect.value));
+    row.querySelector('[data-role=del]').addEventListener('click', () => row.remove());
+
+    renderRowBody(row, cfg.mode, cfg);
+  }
+
+  function renderRowBody(row, mode, cfg) {
+    cfg = cfg || {};
+    const body = row.querySelector('[data-role=body]');
+    if (mode === 'wildcard') {
+      body.innerHTML = `<input type="text" data-role="value" placeholder="vd: 18* hoặc *@agu.edu.vn" value="${esc(cfg.value||'')}">`;
+    } else if (mode === 'length') {
+      body.innerHTML = `
+        <div class="pr-options">
+          <div class="pr-length-wrap">
+            <label>Tiền tố</label>
+            <input type="text" data-role="prefix" placeholder="18" value="${esc(cfg.prefix||'')}" style="width:60px">
+          </div>
+          <div class="pr-length-wrap">
+            <label>Độ dài tổng</label>
+            <input type="number" data-role="length" min="1" max="64" placeholder="13" value="${esc(cfg.length||'')}">
+          </div>
+        </div>`;
+    } else if (mode === 'regex') {
+      body.innerHTML = `<input type="text" data-role="value" placeholder="vd: ^18\\d{11}$" value="${esc(cfg.value||'')}">`;
+    }
+    const err = row.querySelector('[data-role=err]');
+    err.classList.remove('show'); err.textContent = '';
+  }
+
+  DEFAULT_PATTERNS.forEach(p => addPatternRow(p));
+  document.getElementById('add-pattern-btn').addEventListener('click', () => addPatternRow());
+
+  // Đọc cấu hình từ DOM -> trả về mảng { id, mode, raw, matcher(uid)->bool, label, error }
+  function getActivePatterns() {
+    const out = [];
+    patternList.querySelectorAll('.pattern-row').forEach(row => {
+      const mode = row.querySelector('[data-role=mode]').value;
+      const errEl = row.querySelector('[data-role=err]');
+      errEl.classList.remove('show'); errEl.textContent = '';
+      row.querySelectorAll('input').forEach(i => i.classList.remove('invalid'));
+
+      if (mode === 'wildcard') {
+        const valEl = row.querySelector('[data-role=value]');
+        const val = (valEl.value || '').trim();
+        if (!val) return;
+        let re;
+        try {
+          const escaped = val.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+          re = new RegExp('^' + escaped + '$', 'i');
+        } catch(e) {
+          valEl.classList.add('invalid'); errEl.textContent = 'Mẫu không hợp lệ'; errEl.classList.add('show');
+          return;
+        }
+        out.push({ id: row.dataset.id, mode, label: val, matcher: uid => re.test(uid) });
+
+      } else if (mode === 'length') {
+        const prefixEl = row.querySelector('[data-role=prefix]');
+        const lengthEl = row.querySelector('[data-role=length]');
+        const prefix = (prefixEl.value || '').trim();
+        const len = parseInt(lengthEl.value, 10);
+        if (!prefix && !len) return;
+        const label = (prefix || '∅') + ' · ' + (len ? len + ' ký tự' : 'độ dài bất kỳ');
+        out.push({
+          id: row.dataset.id, mode, label,
+          matcher: uid => {
+            const okPrefix = !prefix || uid.toLowerCase().startsWith(prefix.toLowerCase());
+            const okLen = !len || uid.length === len;
+            return okPrefix && okLen;
+          }
+        });
+
+      } else if (mode === 'regex') {
+        const valEl = row.querySelector('[data-role=value]');
+        const val = (valEl.value || '').trim();
+        if (!val) return;
+        let re;
+        try { re = new RegExp(val, 'i'); }
+        catch(e) {
+          valEl.classList.add('invalid'); errEl.textContent = 'Regex lỗi: ' + e.message; errEl.classList.add('show');
+          return;
+        }
+        out.push({ id: row.dataset.id, mode, label: val, matcher: uid => re.test(uid) });
+      }
+    });
+    return out;
+  }
+
+  fi.addEventListener('change',e=>{if(e.target.files[0])load(e.target.files[0]);});
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)load(f);});
+
+  function load(f){
+    raw='';fs.style.display='block';fs.textContent='⟳ Đang đọc: '+f.name;ba.disabled=true;
+    const r=new FileReader();
+    r.onload=ev=>{raw=ev.target.result;const n=raw.split('\n').length;fs.textContent='✓ '+f.name+' · '+n.toLocaleString('vi')+' dòng';ba.disabled=false;toast('success','Đọc file thành công — '+n.toLocaleString('vi')+' dòng');};
+    r.onerror=()=>{fs.textContent='✗ Lỗi đọc file.';toast('error','Không thể đọc file.');};
+    r.readAsText(f,'UTF-8');
+  }
+
+  ba.addEventListener('click',analyze);
+  function analyze(){
+    if(!raw)return;
+    pbw.style.display='block';pb.style.width='0%';
+    ba.disabled=true;ba.textContent='Đang xử lý...';
+    setTimeout(()=>{
+      try{
+        const res=parse(raw,lt.value);
+        rows=res.rows;filtered=[...rows];maxC=rows.length>0?rows[0].count:1;
+
+        document.getElementById('su').textContent=res.uniqueUsers.toLocaleString('vi');
+        document.getElementById('sl').textContent=res.totalLogins.toLocaleString('vi');
+        document.getElementById('sli').textContent=res.totalLines.toLocaleString('vi');
+
+        computePatterns();
+        render();
+        renderPatternTab();
+
+        ph.style.display='none';tabs.style.display='flex';
+        ss.style.display='block';es.style.display='flex';
+        pb.style.width='100%';
+        setTimeout(()=>{pbw.style.display='none';pb.style.width='0%';},400);
+        toast('success',res.uniqueUsers.toLocaleString('vi')+' người dùng · '+res.totalLogins.toLocaleString('vi')+' lượt login');
+      }catch(e){toast('error','Lỗi: '+e.message);pbw.style.display='none';}
+      ba.textContent='Phân tích log';ba.disabled=false;
+    },50);
+  }
+
+  function parse(content,tf){
+    const lines=content.split('\n'),map={},re=/@ (.+?)::login:type=(\w+)/;let tl=0;
+    lines.forEach(l=>{const m=l.trim().match(re);if(!m)return;const uid=m[1].trim(),t=m[2].trim();if(tf&&t!==tf)return;map[uid]=(map[uid]||0)+1;tl++;});
+    const r=Object.entries(map).map(([uid,c])=>({userId:uid,count:c})).sort((a,b)=>b.count-a.count);
+    return{rows:r,totalLines:lines.length,uniqueUsers:r.length,totalLogins:tl};
+  }
+
+  function render(){
+    document.getElementById('sh').textContent=filtered.length.toLocaleString('vi');
+    const sorted=sortDesc?[...filtered].sort((a,b)=>b.count-a.count):[...filtered].sort((a,b)=>a.count-b.count);
+    const frag=document.createDocumentFragment();
+    sorted.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      const isE=r.userId.includes('@');
+      const rb=i===0?'<span class="rb r1">#1</span>':i===1?'<span class="rb r2">#2</span>':i===2?'<span class="rb r3">#3</span>':'';
+      const bw=Math.max(2,Math.round((r.count/maxC)*72));
+      tr.innerHTML=`<td>${i+1}</td><td class="uid${isE?' email':''}">${esc(r.userId)}${rb}</td><td class="cc"><span class="cb"><span class="bar" style="width:${bw}px"></span><span class="cn">${r.count.toLocaleString('vi')}</span></span></td>`;
+      frag.appendChild(tr);
+    });
+    tbody.innerHTML='';tbody.appendChild(frag);
+  }
+
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  si.addEventListener('input',()=>{const q=si.value.trim().toLowerCase();filtered=q?rows.filter(r=>r.userId.toLowerCase().includes(q)):[...rows];render();});
+  sb.addEventListener('click',()=>{sortDesc=!sortDesc;sb.classList.toggle('asc',!sortDesc);sb.innerHTML=`<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>${sortDesc?'Nhiều nhất':'Ít nhất'}`;render();});
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  let groupedByPattern = {}; // patternId -> { label, rows: [{userId,count}] }
+
+  function computePatterns(){
+    const patterns = getActivePatterns();
+
+    const matched = [];
+    groupedByPattern = {};
+    patterns.forEach(p => { groupedByPattern[p.id] = { label: p.label, mode: p.mode, rows: [] }; });
+
+    rows.forEach(r => {
+      for (const p of patterns) {
+        if (p.matcher(r.userId)) {
+          matched.push({ userId: r.userId, count: r.count, patternId: p.id, label: p.label });
+          groupedByPattern[p.id].rows.push(r);
+          break;
+        }
+      }
+    });
+
+    patternResults = matched;
+    patFiltered = [...matched];
+
+    const totalMatchedUsers = matched.length;
+    patSummary.innerHTML = patterns.map(p => {
+      const g = groupedByPattern[p.id];
+      const userCount = g.rows.length;
+      const loginCount = g.rows.reduce((s,r)=>s+r.count,0);
+      const pct = rows.length > 0 ? Math.round((userCount / rows.length) * 100) : 0;
+      return `
+        <div class="pat-card">
+          <div class="pc-pattern">${esc(p.label)}</div>
+          <div class="pc-count">${userCount.toLocaleString('vi')}</div>
+          <div class="pc-sub">${loginCount.toLocaleString('vi')} lượt đăng nhập · ${pct}% tổng số</div>
+          <div class="pc-bar-track"><div class="pc-bar-fill" style="width:${pct}%"></div></div>
+          <button class="pc-dl" data-pid="${p.id}" ${userCount===0?'disabled':''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+            Tải CSV riêng
+          </button>
+        </div>`;
+    }).join('') + (patterns.length === 0
+        ? '<div style="grid-column:1/-1; color:var(--muted); font-size:.78rem; padding:.5rem;">Chưa cấu hình mẫu tài khoản nào.</div>'
+        : `<div class="pat-card" style="border-color:var(--accent)">
+             <div class="pc-pattern" style="color:var(--accent2)">Không khớp mẫu nào</div>
+             <div class="pc-count">${(rows.length-totalMatchedUsers).toLocaleString('vi')}</div>
+             <div class="pc-sub">${Math.round(((rows.length-totalMatchedUsers)/Math.max(rows.length,1))*100)}% tổng số</div>
+           </div>`);
+
+    // Gắn sự kiện tải CSV riêng cho từng card
+    patSummary.querySelectorAll('.pc-dl').forEach(btn => {
+      btn.addEventListener('click', () => exportPatternGroup(btn.dataset.pid));
+    });
+  }
+
+  function exportPatternGroup(pid) {
+    const g = groupedByPattern[pid];
+    if (!g || g.rows.length === 0) return;
+    const sorted = [...g.rows].sort((a,b)=>b.count-a.count);
+    let csv = 'STT,Ma nguoi dung / Email,So lan dang nhap\n';
+    sorted.forEach((r,i) => {
+      const u = r.userId.includes(',') ? `"${r.userId}"` : r.userId;
+      csv += `${i+1},${u},${r.count}\n`;
+    });
+    const safeName = g.label.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40) || 'pattern';
+    dl(csv, `login_pattern_${safeName}.csv`, 'text/csv;charset=utf-8;');
+    toast('success', `Đã tải về nhóm "${g.label}" — ${g.rows.length.toLocaleString('vi')} người dùng`);
+  }
+
+  function renderPatternTab(){
+    const maxPc = patFiltered.length > 0 ? Math.max(...patFiltered.map(r=>r.count)) : 1;
+    const sorted = patSortDesc ? [...patFiltered].sort((a,b)=>b.count-a.count) : [...patFiltered].sort((a,b)=>a.count-b.count);
+    const frag = document.createDocumentFragment();
+    sorted.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      const isE=r.userId.includes('@');
+      const bw=Math.max(2,Math.round((r.count/maxPc)*60));
+      tr.innerHTML=`<td>${i+1}</td><td class="uid${isE?' email':''}">${esc(r.userId)}</td><td><span class="pat-badge">${esc(r.label)}</span></td><td class="cc"><span class="cb"><span class="bar pat" style="width:${bw}px"></span><span class="cn">${r.count.toLocaleString('vi')}</span></span></td>`;
+      frag.appendChild(tr);
+    });
+    tbody2.innerHTML='';tbody2.appendChild(frag);
+  }
+
+  si2.addEventListener('input',()=>{const q=si2.value.trim().toLowerCase();patFiltered=q?patternResults.filter(r=>r.userId.toLowerCase().includes(q)):[...patternResults];renderPatternTab();});
+  sb2.addEventListener('click',()=>{patSortDesc=!patSortDesc;sb2.classList.toggle('asc',!patSortDesc);sb2.innerHTML=`<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>${patSortDesc?'Nhiều nhất':'Ít nhất'}`;renderPatternTab();});
+
+  document.getElementById('btn-csv').addEventListener('click',()=>{
+    if(!rows.length)return;
+    let c='STT,Ma nguoi dung / Email,So lan dang nhap\n';
+    [...filtered].sort((a,b)=>sortDesc?b.count-a.count:a.count-b.count).forEach((r,i)=>{const u=r.userId.includes(',')?`"${r.userId}"`:r.userId;c+=`${i+1},${u},${r.count}\n`;});
+    dl(c,'login_statistics.csv','text/csv;charset=utf-8;');toast('success','Đã tải về CSV');
+  });
+  document.getElementById('btn-xl').addEventListener('click',()=>{
+    if(!rows.length)return;
+    let t='STT\tMa nguoi dung / Email\tSo lan dang nhap\n';
+    [...filtered].sort((a,b)=>sortDesc?b.count-a.count:a.count-b.count).forEach((r,i)=>{t+=`${i+1}\t${r.userId}\t${r.count}\n`;});
+    dl('\uFEFF'+t,'login_statistics.tsv','text/tab-separated-values;charset=utf-8;');toast('success','Đã tải về TSV — mở bằng Excel');
+  });
+  document.getElementById('btn-cp').addEventListener('click',()=>{
+    if(!rows.length)return;
+    let t='STT\tMa nguoi dung / Email\tSo lan dang nhap\n';
+    [...filtered].sort((a,b)=>sortDesc?b.count-a.count:a.count-b.count).forEach((r,i)=>{t+=`${i+1}\t${r.userId}\t${r.count}\n`;});
+    navigator.clipboard.writeText(t).then(()=>toast('success','Đã copy — paste vào Excel/Sheets')).catch(()=>toast('error','Không thể copy'));
+  });
+
+  function dl(c,fn,m){const b=new Blob([c],{type:m}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(u);},100);}
+
+  let tt;
+  function toast(type,msg){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+type;clearTimeout(tt);tt=setTimeout(()=>{t.className='';},3500);}
+})();
+</script>
+</body>
+</html>
