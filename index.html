@@ -1,261 +1,345 @@
-const EMOJIS = ['🔗','📊','📋','🗂','📁','🖥','⚙','🔧','🔍','📝','📌','🚀','💡','🌐','📬','🗓','📦','🎯','🧮','🛠','📐','🔐','📈','🧩','🎨','📷','🎬','🎵','📚','🗒'];
-const CATEGORIES = ['Công cụ','Tài liệu','Hệ thống','Tra cứu','Quản lý','Khác'];
-const COLORS = [
-  ['#63b3ed','#76e4c4'],['#a78bfa','#f472b6'],['#fb923c','#fbbf24'],
-  ['#34d399','#22d3ee'],['#f87171','#fb923c'],['#818cf8','#38bdf8']
-];
+<style>
+  .tic-root, .tic-root *, .tic-root *::before, .tic-root *::after { box-sizing: border-box; }
+  .tic-root {
+    --bg: #0f1117; --surface: #181c27; --card: #1e2333;
+    --border: rgba(255,255,255,0.07); --border-hover: rgba(99,179,237,0.45);
+    --accent: #63b3ed; --accent2: #76e4c4; --text: #e8eaf0; --muted: #8a92a8;
+    --danger: #f87171; --input-bg: #0f1117;
+    font-family: var(--font-sans); background: var(--bg); color: var(--text);
+    border-radius: var(--border-radius-lg); overflow: hidden;
+  }
+  .tic-banner {
+    background: linear-gradient(135deg, #1a2340 0%, #0d1929 60%, #111827 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 28px 32px; text-align: center; position: relative; overflow: hidden;
+  }
+  .tic-banner::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 20% 50%, rgba(99,179,237,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 60% at 80% 30%, rgba(118,228,196,0.07) 0%, transparent 70%);
+  }
+  .tic-banner-icon { font-size: 36px; margin-bottom: 10px; display: block; position: relative; }
+  .tic-banner h1 {
+    font-size: 28px; font-weight: 500; letter-spacing: -0.5px; position: relative; margin: 0;
+    background: linear-gradient(135deg, #e8eaf0 30%, #63b3ed 70%, #76e4c4 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .tic-banner p { margin-top: 8px; font-size: 14px; color: var(--muted); position: relative; }
+  .tic-body { padding: 24px 28px 28px; }
+  .tic-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .tic-toolbar-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .tic-toolbar-left span { background: rgba(99,179,237,0.12); color: var(--accent); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 500; }
+  .tic-btn-add {
+    display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 14px;
+    font-weight: 500; font-family: inherit; cursor: pointer; transition: transform 0.15s;
+  }
+  .tic-btn-add:hover { transform: translateY(-1px); }
+  .tic-btn-add:active { transform: translateY(0); }
+  .tic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+  .tic-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px;
+    transition: border-color 0.2s, transform 0.2s; position: relative; overflow: hidden;
+  }
+  .tic-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--ac1, #63b3ed), var(--ac2, #76e4c4)); opacity: 0; transition: opacity 0.3s;
+  }
+  .tic-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+  .tic-card:hover::before { opacity: 1; }
+  .tic-card-header { display: flex; align-items: center; gap: 10px; }
+  .tic-emoji {
+    width: 38px; height: 38px; background: var(--surface); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 19px;
+    border: 1px solid var(--border); flex-shrink: 0; cursor: pointer; transition: background 0.2s; user-select: none;
+  }
+  .tic-emoji:hover { background: rgba(99,179,237,0.12); }
+  .tic-title-wrap { flex: 1; min-width: 0; }
+  .tic-name { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin-bottom: 1px; }
+  .tic-label { font-size: 11px; color: var(--muted); }
+  .tic-del {
+    width: 28px; height: 28px; background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.15s; font-family: inherit; margin-left: auto; flex-shrink: 0;
+  }
+  .tic-del:hover { background: rgba(248,113,113,0.12); color: var(--danger); border-color: rgba(248,113,113,0.3); }
+  .tic-field { display: flex; flex-direction: column; gap: 4px; }
+  .tic-field label { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: 0.3px; }
+  .tic-field input, .tic-field select {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    font-family: inherit; font-size: 13px; padding: 7px 10px; outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  .tic-field input:focus, .tic-field select:focus { border-color: var(--accent); }
+  .tic-field input::placeholder { color: var(--muted); }
+  .tic-field select option { background: #1e2333; color: #e8eaf0; }
+  .tic-link-row { display: flex; gap: 8px; align-items: center; }
+  .tic-link-row input { flex: 1; }
+  .tic-open {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    background: rgba(99,179,237,0.12); border: 1px solid rgba(99,179,237,0.25); border-radius: 8px;
+    color: var(--accent); font-family: inherit; font-size: 12px; font-weight: 500; padding: 7px 12px;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap; text-decoration: none; flex-shrink: 0;
+  }
+  .tic-open:hover { background: rgba(99,179,237,0.22); }
+  .tic-empty { grid-column: 1/-1; text-align: center; padding: 48px 16px; color: var(--muted); }
+  .tic-empty p { font-size: 14px; margin-top: 12px; }
+  .tic-picker {
+    position: fixed; background: #1e2333; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+    padding: 8px; display: flex; flex-wrap: wrap; gap: 3px; width: 190px; z-index: 1000;
+  }
+  .tic-picker button { width: 30px; height: 30px; background: none; border: none; border-radius: 6px; font-size: 17px; cursor: pointer; }
+  .tic-picker button:hover { background: rgba(255,255,255,0.1); }
+  .tic-footer { text-align: center; margin-top: 24px; color: var(--muted); font-size: 12px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+</style>
 
-let cards = JSON.parse(localStorage.getItem('tienich_cards') || '[]');
-let syncKey = localStorage.getItem('tienich_synckey') || '';
-let pickerTarget = null;
-let saveDebounceTimeout = null;
+<div class="tic-root">
+  <h2 class="sr-only">Bảng quản lý tiện ích cá nhân: thêm, đặt tên và lưu liên kết tới các trang khác, dữ liệu được lưu trữ dùng chung trên server nên đồng bộ trên mọi thiết bị.</h2>
 
-function setStatus(type, text) {
-  const dot = document.getElementById('statusDot');
-  const txt = document.getElementById('syncStatus');
-  if(!dot || !txt) return;
-  dot.className = 'status-dot';
-  if(type === 'online') dot.classList.add('status-online');
-  if(type === 'loading') dot.classList.add('status-loading');
-  txt.textContent = text;
-}
+  <div class="tic-banner">
+    <span class="tic-banner-icon"><i class="ti ti-tools" aria-hidden="true"></i></span>
+    <h1>Tiện ích cá nhân</h1>
+    <p>Quản lý các công cụ và liên kết hữu ích · đồng bộ trên mọi thiết bị</p>
+  </div>
 
-// Hàm lưu dữ liệu
-function save() {
-  localStorage.setItem('tienich_cards', JSON.stringify(cards));
-  updateCount();
+  <div class="tic-body">
+    <div class="tic-toolbar">
+      <div class="tic-toolbar-left">Tổng số tiện ích: <span id="tic-count">0</span></div>
+      <button class="tic-btn-add" id="tic-add-btn"><i class="ti ti-plus" aria-hidden="true"></i>Thêm tiện ích</button>
+    </div>
 
-  if (!syncKey) {
-    setStatus('', 'Đang lưu Offline (Nhập mã phía trên hoặc bấm Tải về để tạo mã mới).');
-    return;
+    <div class="tic-grid" id="tic-grid">
+      <div class="tic-empty" id="tic-empty">
+        <i class="ti ti-layout-grid-add" style="font-size:40px; opacity:0.3;" aria-hidden="true"></i>
+        <p>Chưa có tiện ích nào. Nhấn "Thêm tiện ích" để bắt đầu.</p>
+      </div>
+    </div>
+
+    <div class="tic-footer" id="tic-status">Đang tải dữ liệu...</div>
+  </div>
+</div>
+
+<div class="tic-picker" id="tic-picker" style="display:none;"></div>
+
+<script>
+(function() {
+  const EMOJIS = ['🔗','📊','📋','🗂','📁','🖥','⚙','🔧','🔍','📝','📌','🚀','💡','🌐','📬','🗓','📦','🎯','🧮','🛠','📐','🔐','📈','🧩','🎨','📷','🎬','🎵','📚','🗒'];
+  const CATEGORIES = ['Công cụ','Tài liệu','Hệ thống','Tra cứu','Quản lý','Khác'];
+  const COLORS = [
+    ['#63b3ed','#76e4c4'],['#a78bfa','#f472b6'],['#fb923c','#fbbf24'],
+    ['#34d399','#22d3ee'],['#f87171','#fb923c'],['#818cf8','#38bdf8']
+  ];
+  const STORAGE_KEY = 'tienich_cards';
+  let cards = [];
+  let pickerTarget = null;
+  let saveTimer = null;
+  let isReady = false;
+
+  const grid = document.getElementById('tic-grid');
+  const empty = document.getElementById('tic-empty');
+  const countEl = document.getElementById('tic-count');
+  const statusEl = document.getElementById('tic-status');
+  const picker = document.getElementById('tic-picker');
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.style.color = isError ? 'var(--danger)' : 'var(--muted)';
   }
 
-  setStatus('loading', 'Đang đồng bộ lên Cloud...');
-  clearTimeout(saveDebounceTimeout);
-  
-  saveDebounceTimeout = setTimeout(() => {
-    // API npoint sử dụng phương thức POST/PUT để ghi đè dữ liệu JSON nguyên bản
-    fetch(`https://api.npoint.io/${syncKey}`, {
-      method: 'POST',
-      body: JSON.stringify({ data: cards }),
-      headers: { 'Content-Type': 'application/json' }
-    })
-    .then(res => {
-      if(res.ok) setStatus('online', 'Đã đồng bộ lên Cloud thành công!');
-      else setStatus('', 'Lỗi đồng bộ Cloud (Thử lại sau), đã lưu tạm ở máy.');
-    })
-    .catch(() => setStatus('', 'Không có kết nối mạng. Đã lưu tạm ở máy.'));
-  }, 1000);
-}
+  function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escAttr(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
-// Hàm tải dữ liệu / Tạo thùng chứa mới
-function loadFromCloud() {
-  setStatus('loading', 'Đang kết nối đám mây...');
-  
-  // NẾU CHƯA CÓ KEY -> Tự động đăng ký một thùng chứa (JSON bin) hoàn toàn mới trên npoint
-  if (!syncKey) {
-    fetch('https://api.npoint.io', {
-      method: 'POST',
-      body: JSON.stringify({ data: cards }),
-      headers: { 'Content-Type': 'application/json' }
-    })
-    .then(res => res.json())
-    .then(result => {
-      if(result && result.id) {
-        syncKey = result.id;
-        document.getElementById('syncKeyInput').value = syncKey;
-        localStorage.setItem('tienich_synckey', syncKey);
-        setStatus('online', `Đã cấp mã mới: ${syncKey}. Hãy lưu mã này sang máy khác!`);
+  async function loadCards() {
+    try {
+      const result = await window.storage.get(STORAGE_KEY, true);
+      cards = result && result.value ? JSON.parse(result.value) : [];
+    } catch (err) {
+      cards = [];
+    }
+    isReady = true;
+    renderCards();
+    setStatus('Dữ liệu đồng bộ trên mọi thiết bị');
+
+    if (cards.length === 0) {
+      const demos = [
+        { name: 'Google Drive', emoji: '📁', category: 'Tài liệu', link: 'https://drive.google.com' },
+        { name: 'Gmail', emoji: '📬', category: 'Công cụ', link: 'https://mail.google.com' },
+        { name: 'Google Calendar', emoji: '🗓', category: 'Quản lý', link: 'https://calendar.google.com' },
+      ];
+      demos.forEach((d, i) => {
+        cards.push({ id: Date.now() + i, emoji: d.emoji, name: d.name, category: d.category, link: d.link, colorIdx: i });
+      });
+      save(true);
+      renderCards();
+    }
+  }
+
+  function save(immediate) {
+    updateCount();
+    if (!isReady) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    const doSave = async () => {
+      setStatus('Đang lưu...');
+      try {
+        const result = await window.storage.set(STORAGE_KEY, JSON.stringify(cards), true);
+        if (!result) throw new Error('Lưu thất bại');
+        setStatus('Đã lưu · đồng bộ trên mọi thiết bị');
+      } catch (err) {
+        setStatus('Lỗi lưu dữ liệu, vui lòng thử lại', true);
       }
-    })
-    .catch(() => setStatus('', 'Lỗi khởi tạo Cloud. Đang chạy Offline.'));
-    return;
+    };
+    if (immediate) doSave();
+    else saveTimer = setTimeout(doSave, 600);
   }
 
-  // NẾU ĐÃ CÓ KEY -> Tiến hành tải dữ liệu về
-  fetch(`https://api.npoint.io/${syncKey}`)
-    .then(res => {
-      if (!res.ok) throw new Error('Mã không tồn tại');
-      return res.json();
-    })
-    .then(cloudObj => {
-      if (cloudObj && Array.isArray(cloudObj.data)) {
-        cards = cloudObj.data;
-        localStorage.setItem('tienich_cards', JSON.stringify(cards));
-        renderCards();
-        setStatus('online', 'Đã cập nhật dữ liệu mới nhất từ Cloud!');
-      } else {
-        // Nếu thùng chứa rỗng hoặc lỗi định dạng, đẩy data hiện tại lên luôn
-        save();
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      setStatus('', 'Mã Cloud không hợp lệ hoặc đã bị xóa. Vui lòng kiểm tra lại.');
-    });
-}
-
-function changeSyncKey(val) {
-  syncKey = val.trim().replace(/[^a-zA-Z0-9]/g, ''); // npoint id chỉ gồm chữ và số
-  document.getElementById('syncKeyInput').value = syncKey;
-  localStorage.setItem('tienich_synckey', syncKey);
-  if (syncKey) {
-    loadFromCloud();
-  } else {
-    setStatus('', 'Đã tắt đồng bộ đám mây.');
+  function updateCount() {
+    countEl.textContent = cards.length;
+    empty.style.display = cards.length ? 'none' : '';
   }
-}
 
-function updateCount() {
-  document.getElementById('count').textContent = cards.length;
-  document.getElementById('emptyState').style.display = cards.length ? 'none' : '';
-}
+  function addCard() {
+    const colorIdx = cards.length % COLORS.length;
+    const card = {
+      id: Date.now(),
+      emoji: EMOJIS[Math.floor(Math.random() * 8)],
+      name: 'Tiện ích ' + (cards.length + 1),
+      category: CATEGORIES[0],
+      link: '',
+      colorIdx
+    };
+    cards.push(card);
+    save(true);
+    renderCards();
+    setTimeout(() => {
+      const el = document.getElementById('tic-card-' + card.id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
 
-function addCard() {
-  const colorIdx = cards.length % COLORS.length;
-  const card = {
-    id: Date.now(),
-    emoji: EMOJIS[Math.floor(Math.random() * 8)],
-    name: 'Tiện ích ' + (cards.length + 1),
-    category: CATEGORIES[0],
-    link: '',
-    colorIdx
-  };
-  cards.push(card);
-  save();
-  renderCards();
-  setTimeout(() => {
-    const el = document.getElementById('card-' + card.id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 50);
-}
-
-function removeCard(id) {
-  if(confirm('Bạn có chắc chắn muốn xóa tiện ích này?')) {
+  function removeCard(id) {
     cards = cards.filter(c => c.id !== id);
-    save();
+    save(true);
     renderCards();
   }
-}
 
-function updateField(id, field, val) {
-  const c = cards.find(c => c.id === id);
-  if (c) { c[field] = val; save(); }
-}
+  function updateField(id, field, val) {
+    const c = cards.find(c => c.id === id);
+    if (c) { c[field] = val; save(false); }
+  }
 
-function renderCards() {
-  const grid = document.getElementById('grid');
-  const empty = document.getElementById('emptyState');
-  if(!grid) return;
-  grid.innerHTML = '';
-  grid.appendChild(empty);
-  updateCount();
+  function renderCards() {
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    updateCount();
 
-  cards.forEach(c => {
-    const [a1, a2] = COLORS[c.colorIdx % COLORS.length];
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.id = 'card-' + c.id;
-    el.style.setProperty('--accent-color', a1);
-    el.style.setProperty('--accent2-color', a2);
-    el.innerHTML = `
-      <div class="card-header">
-        <div class="card-emoji" title="Đổi biểu tượng" onclick="openPicker(event,${c.id})">${c.emoji}</div>
-        <div class="card-title-wrap">
-          <span class="card-name">${escHtml(c.name) || 'Chưa đặt tên'}</span>
-          <span class="card-label">${escHtml(c.category)}</span>
+    cards.forEach(c => {
+      const [a1, a2] = COLORS[c.colorIdx % COLORS.length];
+      const el = document.createElement('div');
+      el.className = 'tic-card';
+      el.id = 'tic-card-' + c.id;
+      el.style.setProperty('--ac1', a1);
+      el.style.setProperty('--ac2', a2);
+      el.innerHTML = `
+        <div class="tic-card-header">
+          <div class="tic-emoji" title="Đổi biểu tượng" data-emoji-btn="${c.id}">${c.emoji}</div>
+          <div class="tic-title-wrap">
+            <span class="tic-name">${escHtml(c.name) || 'Chưa đặt tên'}</span>
+            <span class="tic-label">${escHtml(c.category)}</span>
+          </div>
+          <button class="tic-del" title="Xóa" data-del="${c.id}" aria-label="Xóa tiện ích">
+            <i class="ti ti-x" aria-hidden="true"></i>
+          </button>
         </div>
-        <div class="card-actions">
-          <button class="icon-btn danger" title="Xóa" onclick="removeCard(${c.id})">✕</button>
+        <div class="tic-field">
+          <label>Tên tiện ích</label>
+          <input type="text" placeholder="Nhập tên tiện ích..." value="${escAttr(c.name)}" data-name="${c.id}">
         </div>
-      </div>
-
-      <div class="field">
-        <label>Tên tiện ích</label>
-        <input type="text" placeholder="Nhập tên tiện ích..." value="${escAttr(c.name)}"
-          oninput="updateField(${c.id},'name',this.value); this.closest('.card').querySelector('.card-name').textContent=this.value||'Chưa đặt tên'">
-      </div>
-
-      <div class="field">
-        <label>Danh mục</label>
-        <select onchange="updateField(${c.id},'category',this.value); this.closest('.card').querySelector('.card-label').textContent=this.value">
-          ${CATEGORIES.map(cat => `<option${cat===c.category?' selected':''}>${cat}</option>`).join('')}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Liên kết (URL)</label>
-        <div class="card-link-row">
-          <input type="url" placeholder="https://..." value="${escAttr(c.link)}"
-            oninput="updateField(${c.id},'link',this.value)">
-          <a class="btn-open" id="btn-${c.id}" href="${escAttr(c.link)||'#'}" target="_blank"
-            onclick="return handleOpen(event,${c.id})" title="Mở liên kết">
-            ↗ Mở
-          </a>
+        <div class="tic-field">
+          <label>Danh mục</label>
+          <select data-category="${c.id}">
+            ${CATEGORIES.map(cat => `<option${cat===c.category?' selected':''}>${cat}</option>`).join('')}
+          </select>
         </div>
-      </div>
-    `;
-    grid.appendChild(el);
-  });
-}
-
-function handleOpen(e, id) {
-  const c = cards.find(c => c.id === id);
-  if (!c || !c.link) { e.preventDefault(); alert('Vui lòng nhập địa chỉ liên kết trước!'); return false; }
-  e.currentTarget.href = c.link;
-  return true;
-}
-
-function openPicker(e, id) {
-  e.stopPropagation();
-  pickerTarget = id;
-  const picker = document.getElementById('emojiPicker');
-  picker.innerHTML = EMOJIS.map(em =>
-    `<button onclick="selectEmoji('${em}')">${em}</button>`
-  ).join('');
-  const rect = e.currentTarget.getBoundingClientRect();
-  picker.style.display = 'flex';
-  picker.style.top = (rect.bottom + window.scrollY + 6) + 'px';
-  picker.style.left = (rect.left + window.scrollX) + 'px';
-}
-
-function selectEmoji(em) {
-  if (!pickerTarget) return;
-  updateField(pickerTarget, 'emoji', em);
-  const card = document.getElementById('card-' + pickerTarget);
-  if (card) card.querySelector('.card-emoji').textContent = em;
-  document.getElementById('emojiPicker').style.display = 'none';
-  pickerTarget = null;
-}
-
-document.addEventListener('click', () => {
-  const picker = document.getElementById('emojiPicker');
-  if(picker) picker.style.display = 'none';
-  pickerTarget = null;
-});
-
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s||'').replace(/"/g,'&quot;'); }
-
-// Khởi động hệ thống
-renderCards();
-
-if (syncKey) {
-  const inputEl = document.getElementById('syncKeyInput');
-  if(inputEl) inputEl.value = syncKey;
-  loadFromCloud();
-} else {
-  setStatus('', 'Đang lưu Offline. Bấm nút "🔄 Tải về" để tự động cấp mã đồng bộ Cloud mới.');
-  if (cards.length === 0) {
-    const demos = [
-      { name: 'Google Drive', emoji: '📁', category: 'Tài liệu', link: 'https://drive.google.com' },
-      { name: 'Gmail', emoji: '📬', category: 'Công cụ', link: 'https://mail.google.com' },
-      { name: 'Google Calendar', emoji: '🗓', category: 'Quản lý', link: 'https://calendar.google.com' },
-    ];
-    demos.forEach((d, i) => {
-      cards.push({ id: Date.now() + i, emoji: d.emoji, name: d.name, category: d.category, link: d.link, colorIdx: i });
+        <div class="tic-field">
+          <label>Liên kết (URL)</label>
+          <div class="tic-link-row">
+            <input type="url" placeholder="https://..." value="${escAttr(c.link)}" data-link="${c.id}">
+            <a class="tic-open" href="${escAttr(c.link)||'#'}" target="_blank" data-open="${c.id}" title="Mở liên kết">
+              <i class="ti ti-external-link" aria-hidden="true"></i>Mở
+            </a>
+          </div>
+        </div>
+      `;
+      grid.appendChild(el);
     });
-    localStorage.setItem('tienich_cards', JSON.stringify(cards));
-    renderCards();
   }
-}
+
+  grid.addEventListener('click', function(e) {
+    const emojiBtn = e.target.closest('[data-emoji-btn]');
+    if (emojiBtn) { openPicker(e, Number(emojiBtn.dataset.emojiBtn), emojiBtn); return; }
+    const delBtn = e.target.closest('[data-del]');
+    if (delBtn) { removeCard(Number(delBtn.dataset.del)); return; }
+    const openLink = e.target.closest('[data-open]');
+    if (openLink) {
+      const id = Number(openLink.dataset.open);
+      const c = cards.find(c => c.id === id);
+      if (!c || !c.link) { e.preventDefault(); alert('Vui lòng nhập địa chỉ liên kết trước!'); }
+      else { openLink.href = c.link; }
+    }
+  });
+
+  grid.addEventListener('input', function(e) {
+    const nameInput = e.target.closest('[data-name]');
+    if (nameInput) {
+      const id = Number(nameInput.dataset.name);
+      updateField(id, 'name', nameInput.value);
+      const card = document.getElementById('tic-card-' + id);
+      if (card) card.querySelector('.tic-name').textContent = nameInput.value || 'Chưa đặt tên';
+      return;
+    }
+    const linkInput = e.target.closest('[data-link]');
+    if (linkInput) { updateField(Number(linkInput.dataset.link), 'link', linkInput.value); return; }
+  });
+
+  grid.addEventListener('change', function(e) {
+    const catSel = e.target.closest('[data-category]');
+    if (catSel) {
+      const id = Number(catSel.dataset.category);
+      updateField(id, 'category', catSel.value);
+      const card = document.getElementById('tic-card-' + id);
+      if (card) card.querySelector('.tic-label').textContent = catSel.value;
+    }
+  });
+
+  function openPicker(e, id, anchorEl) {
+    e.stopPropagation();
+    pickerTarget = id;
+    picker.innerHTML = EMOJIS.map(em => `<button data-em="${em}">${em}</button>`).join('');
+    const rect = anchorEl.getBoundingClientRect();
+    picker.style.display = 'flex';
+    picker.style.top = (rect.bottom + 6) + 'px';
+    picker.style.left = rect.left + 'px';
+  }
+
+  picker.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-em]');
+    if (!btn || !pickerTarget) return;
+    const em = btn.dataset.em;
+    updateField(pickerTarget, 'emoji', em);
+    const card = document.getElementById('tic-card-' + pickerTarget);
+    if (card) card.querySelector('.tic-emoji').textContent = em;
+    picker.style.display = 'none';
+    pickerTarget = null;
+  });
+
+  document.addEventListener('click', function() {
+    picker.style.display = 'none';
+    pickerTarget = null;
+  });
+
+  document.getElementById('tic-add-btn').addEventListener('click', addCard);
+
+  loadCards();
+})();
+</script>
