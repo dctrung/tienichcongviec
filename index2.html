@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiện ích cá nhân (Cloud Sync)</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Be+Vietnam+Pro:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --card: #1e2333;
+    --border: rgba(255,255,255,0.07);
+    --border-hover: rgba(99,179,237,0.45);
+    --accent: #63b3ed;
+    --accent2: #76e4c4;
+    --text: #e8eaf0;
+    --muted: #8a92a8;
+    --danger: #f87171;
+    --input-bg: #0f1117;
+    --shadow: 0 8px 32px rgba(0,0,0,0.45);
+  }
+
+  body {
+    font-family: 'Be Vietnam Pro', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+
+  /* ── BANNER ── */
+  .banner {
+    background: linear-gradient(135deg, #1a2340 0%, #0d1929 60%, #111827 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 32px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 80% at 20% 50%, rgba(99,179,237,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 60% at 80% 30%, rgba(118,228,196,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .banner-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(99,179,237,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,179,237,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+  .banner-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    display: block;
+    position: relative;
+  }
+  .banner h1 {
+    font-family: 'Baloo 2', cursive;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    position: relative;
+    background: linear-gradient(135deg, #e8eaf0 30%, #63b3ed 70%, #76e4c4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+  .banner p {
+    margin-top: 10px;
+    font-size: 0.95rem;
+    color: var(--muted);
+    font-weight: 300;
+    position: relative;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── SYNC BAR ── */
+  .sync-container {
+    max-width: 1100px;
+    margin: 20px auto 0;
+    padding: 0 28px;
+  }
+  .sync-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .sync-info { display: flex; flex-direction: column; gap: 4px; }
+  .sync-title { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+  .sync-desc { font-size: 0.75rem; color: var(--muted); }
+  .sync-inputs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sync-input {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    min-width: 220px;
+  }
+  .sync-input:focus { border-color: var(--accent); }
+  .btn-sync {
+    background: rgba(118,228,196,0.12);
+    border: 1px solid rgba(118,228,196,0.25);
+    color: var(--accent2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-sync:hover { background: rgba(118,228,196,0.22); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #6b7280;
+    display: inline-block; margin-right: 6px;
+  }
+  .status-online { background: #34d399; box-shadow: 0 0 8px #34d399; }
+  .status-loading { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1100px;
+    margin: 20px auto 0;
+    padding: 0 28px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .toolbar-left span {
+    background: rgba(99,179,237,0.12);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+  .btn-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(37,99,235,0.35);
+  }
+  .btn-add:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.5); }
+  .btn-add:active { transform: translateY(0); }
+
+  /* ── GRID ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1100px;
+    margin: 24px auto 0;
+    padding: 0 28px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-color, #63b3ed), var(--accent2-color, #76e4c4));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card:hover { border-color: var(--border-hover); box-shadow: 0 12px 40px rgba(0,0,0,0.4); transform: translateY(-2px); }
+  .card:hover::before { opacity: 1; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-emoji {
+    width: 44px; height: 44px;
+    background: var(--surface);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+  }
+  .card-emoji:hover { background: rgba(99,179,237,0.12); }
+
+  .card-title-wrap { flex: 1; min-width: 0; }
+  .card-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .card-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .icon-btn {
+    width: 30px; height: 30px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .icon-btn:hover { background: var(--surface); color: var(--text); border-color: rgba(255,255,255,0.15); }
+  .icon-btn.danger:hover { background: rgba(248,113,113,0.12); color: var(--danger); border-color: rgba(248,113,113,0.3); }
+
+  /* Inputs trong card */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 0.72rem; color: var(--muted); font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; }
+  .field input, .field select {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.875rem;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--muted); }
+  .field select option { background: #1e2333; }
+
+  .card-link-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .card-link-row input { flex: 1; }
+  .btn-open {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(99,179,237,0.12);
+    border: 1px solid rgba(99,179,237,0.25);
+    border-radius: 8px;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .btn-open:hover { background: rgba(99,179,237,0.22); border-color: rgba(99,179,237,0.45); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-state svg { opacity: 0.25; margin-bottom: 16px; }
+  .empty-state p { font-size: 0.95rem; }
+
+  /* ── EMOJI PICKER ── */
+  .emoji-picker {
+    position: absolute;
+    background: #1e2333;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 10px;
+    display: flex; flex-wrap: wrap;
+    gap: 4px;
+    width: 200px;
+    z-index: 100;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  }
+  .emoji-picker button {
+    width: 32px; height: 32px;
+    background: none; border: none; border-radius: 6px;
+    font-size: 18px; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .emoji-picker button:hover { background: rgba(255,255,255,0.08); }
+
+  /* ── FOOTER ── */
+  .footer { text-align: center; margin-top: 48px; color: var(--muted); font-size: 0.78rem; }
+
+  @media (max-width: 600px) {
+    .banner { padding: 36px 20px 28px; }
+    .grid { padding: 0 16px; grid-template-columns: 1fr; }
+    .toolbar { padding: 0 16px; }
+    .sync-bar { flex-direction: column; align-items: flex-start; }
+    .sync-inputs { width: 100%; }
+    .sync-input { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="banner-grid"></div>
+  <span class="banner-icon">🧰</span>
+  <h1>Tiện ích cá nhân</h1>
+  <p>Quản lý các công cụ &amp; liên kết hữu ích của bạn tại một nơi</p>
+</div>
+
+<div class="sync-container">
+  <div class="sync-bar">
+    <div class="sync-info">
+      <div class="sync-title"><span id="statusDot" class="status-dot"></span>Đồng bộ đám mây</div>
+      <div class="sync-desc" id="syncStatus">Nhập mã bất kỳ để đồng bộ đa thiết bị.</div>
+    </div>
+    <div class="sync-inputs">
+      <input type="text" id="syncKeyInput" class="sync-input" placeholder="Ví dụ: my-private-tools-2026" onchange="changeSyncKey(this.value)">
+      <button class="btn-sync" onclick="loadFromCloud()">🔄 Tải về</button>
+    </div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    Tổng số tiện ích: <span id="count">0</span>
+  </div>
+  <button class="btn-add" onclick="addCard()">
+    ＋ &nbsp;Thêm tiện ích
+  </button>
+</div>
+
+<div class="grid" id="grid">
+  <div class="empty-state" id="emptyState">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+    </svg>
+    <p>Chưa có tiện ích nào.<br>Nhấn <strong style="color:#e8eaf0">+ Thêm tiện ích</strong> để bắt đầu.</p>
+  </div>
+</div>
+
+<div class="footer">Dữ liệu được tự động lưu cục bộ & Cloud · Tiện ích cá nhân</div>
+
+<div class="emoji-picker" id="emojiPicker" style="display:none;"></div>
+
+<script>
+const EMOJIS = ['🔗','📊','📋','🗂','📁','🖥','⚙','🔧','🔍','📝','📌','🚀','💡','🌐','📬','🗓','📦','🎯','🧮','🛠','📐','🔐','📈','🧩','🎨','📷','🎬','🎵','📚','🗒'];
+const CATEGORIES = ['Công cụ','Tài liệu','Hệ thống','Tra cứu','Quản lý','Khác'];
+const COLORS = [
+  ['#63b3ed','#76e4c4'],['#a78bfa','#f472b6'],['#fb923c','#fbbf24'],
+  ['#34d399','#22d3ee'],['#f87171','#fb923c'],['#818cf8','#38bdf8']
+];
+
+// Tạo endpoint ngẫu nhiên từ KVdb.io (Hoàn toàn free, không cần đăng ký)
+const KVDB_BUCKET = "https://kvdb.io/MN87bSg7m6pWhqDsk9Tbyf/"; 
+
+let cards = JSON.parse(localStorage.getItem('tienich_cards') || '[]');
+let syncKey = localStorage.getItem('tienich_synckey') || '';
+let pickerTarget = null;
+let saveDebounceTimeout = null;
+
+function setStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('syncStatus');
+  dot.className = 'status-dot';
+  if(type === 'online') dot.classList.add('status-online');
+  if(type === 'loading') dot.classList.add('status-loading');
+  txt.textContent = text;
+}
+
+// Lưu dữ liệu (Kết hợp Local và Cloud)
+function save() {
+  localStorage.setItem('tienich_cards', JSON.stringify(cards));
+  updateCount();
+
+  if (!syncKey) {
+    setStatus('', 'Đang lưu Offline (Nhập mã phía trên để đồng bộ Cloud).');
+    return;
+  }
+
+  setStatus('loading', 'Đang đồng bộ lên Cloud...');
+  
+  // Tránh việc gửi request liên tục khi người dùng đang gõ phím (Debounce)
+  clearTimeout(saveDebounceTimeout);
+  saveDebounceTimeout = setTimeout(() => {
+    fetch(KVDB_BUCKET + syncKey, {
+      method: 'POST',
+      body: JSON.stringify(cards),
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => {
+      if(res.ok) setStatus('online', 'Đã đồng bộ lên Cloud thành công!');
+      else setStatus('', 'Lỗi đồng bộ Cloud, đã lưu tạm ở máy.');
+    })
+    .catch(() => setStatus('', 'Không có kết nối mạng. Đã lưu tạm ở máy.'));
+  }, 800); // Đợi người dùng dừng thao tác 0.8 giây rồi mới upload
+}
+
+// Tải dữ liệu từ Cloud về máy
+function loadFromCloud() {
+  if (!syncKey) { alert('Vui lòng nhập Mã đồng bộ trước!'); return; }
+  setStatus('loading', 'Đang tải dữ liệu từ Cloud...');
+  
+  fetch(KVDB_BUCKET + syncKey)
+    .then(res => {
+      if (res.status === 404) {
+        setStatus('online', 'Mã mới (Chưa có dữ liệu trên Cloud). Sẽ tự tạo khi bạn chỉnh sửa.');
+        return null; // Key chưa tồn tại, giữ nguyên data hiện tại để push lên sau
+      }
+      return res.json();
+    })
+    .then(cloudData => {
+      if (cloudData && Array.isArray(cloudData)) {
+        cards = cloudData;
+        localStorage.setItem('tienich_cards', JSON.stringify(cards));
+        renderCards();
+        setStatus('online', 'Đã cập nhật dữ liệu mới nhất từ Cloud!');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      setStatus('', 'Lỗi tải từ Cloud. Vui lòng kiểm tra lại mã.');
+    });
+}
+
+function changeSyncKey(val) {
+  syncKey = val.trim().replace(/[^a-zA-Z0-9-_]/g, ''); // Clear ký tự đặc biệt
+  document.getElementById('syncKeyInput').value = syncKey;
+  localStorage.setItem('tienich_synckey', syncKey);
+  if (syncKey) {
+    loadFromCloud();
+  } else {
+    setStatus('', 'Đã tắt đồng bộ đám mây.');
+  }
+}
+
+function updateCount() {
+  document.getElementById('count').textContent = cards.length;
+  document.getElementById('emptyState').style.display = cards.length ? 'none' : '';
+}
+
+function addCard() {
+  const colorIdx = cards.length % COLORS.length;
+  const card = {
+    id: Date.now(),
+    emoji: EMOJIS[Math.floor(Math.random() * 8)],
+    name: 'Tiện ích ' + (cards.length + 1),
+    category: CATEGORIES[0],
+    link: '',
+    colorIdx
+  };
+  cards.push(card);
+  save();
+  renderCards();
+  setTimeout(() => {
+    const el = document.getElementById('card-' + card.id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+function removeCard(id) {
+  if(confirm('Bạn có chắc chắn muốn xóa tiện ích này?')) {
+    cards = cards.filter(c => c.id !== id);
+    save();
+    renderCards();
+  }
+}
+
+function updateField(id, field, val) {
+  const c = cards.find(c => c.id === id);
+  if (c) { c[field] = val; save(); }
+}
+
+function renderCards() {
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+  grid.innerHTML = '';
+  grid.appendChild(empty);
+  updateCount();
+
+  cards.forEach(c => {
+    const [a1, a2] = COLORS[c.colorIdx % COLORS.length];
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.id = 'card-' + c.id;
+    el.style.setProperty('--accent-color', a1);
+    el.style.setProperty('--accent2-color', a2);
+    el.innerHTML = `
+      <div class="card-header">
+        <div class="card-emoji" title="Đổi biểu tượng" onclick="openPicker(event,${c.id})">${c.emoji}</div>
+        <div class="card-title-wrap">
+          <span class="card-name">${escHtml(c.name) || 'Chưa đặt tên'}</span>
+          <span class="card-label">${escHtml(c.category)}</span>
+        </div>
+        <div class="card-actions">
+          <button class="icon-btn danger" title="Xóa" onclick="removeCard(${c.id})">✕</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Tên tiện ích</label>
+        <input type="text" placeholder="Nhập tên tiện ích..." value="${escAttr(c.name)}"
+          oninput="updateField(${c.id},'name',this.value); this.closest('.card').querySelector('.card-name').textContent=this.value||'Chưa đặt tên'">
+      </div>
+
+      <div class="field">
+        <label>Danh mục</label>
+        <select onchange="updateField(${c.id},'category',this.value); this.closest('.card').querySelector('.card-label').textContent=this.value">
+          ${CATEGORIES.map(cat => `<option${cat===c.category?' selected':''}>${cat}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Liên kết (URL)</label>
+        <div class="card-link-row">
+          <input type="url" placeholder="https://..." value="${escAttr(c.link)}"
+            oninput="updateField(${c.id},'link',this.value)">
+          <a class="btn-open" id="btn-${c.id}" href="${escAttr(c.link)||'#'}" target="_blank"
+            onclick="return handleOpen(event,${c.id})" title="Mở liên kết">
+            ↗ Mở
+          </a>
+        </div>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+}
+
+function handleOpen(e, id) {
+  const c = cards.find(c => c.id === id);
+  if (!c || !c.link) { e.preventDefault(); alert('Vui lòng nhập địa chỉ liên kết trước!'); return false; }
+  e.currentTarget.href = c.link;
+  return true;
+}
+
+function openPicker(e, id) {
+  e.stopPropagation();
+  pickerTarget = id;
+  const picker = document.getElementById('emojiPicker');
+  picker.innerHTML = EMOJIS.map(em =>
+    `<button onclick="selectEmoji('${em}')">${em}</button>`
+  ).join('');
+  const rect = e.currentTarget.getBoundingClientRect();
+  picker.style.display = 'flex';
+  picker.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+  picker.style.left = (rect.left + window.scrollX) + 'px';
+}
+
+function selectEmoji(em) {
+  if (!pickerTarget) return;
+  updateField(pickerTarget, 'emoji', em);
+  const card = document.getElementById('card-' + pickerTarget);
+  if (card) card.querySelector('.card-emoji').textContent = em;
+  document.getElementById('emojiPicker').style.display = 'none';
+  pickerTarget = null;
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('emojiPicker').style.display = 'none';
+  pickerTarget = null;
+});
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s||'').replace(/"/g,'&quot;'); }
+
+// Khởi tạo ứng dụng
+renderCards();
+
+if (syncKey) {
+  document.getElementById('syncKeyInput').value = syncKey;
+  loadFromCloud();
+} else {
+  setStatus('', 'Đang lưu Offline (Nhập mã phía trên để đồng bộ Cloud).');
+  // Add demo cards nếu mới lần đầu và chưa cấu hình sync
+  if (cards.length === 0) {
+    const demos = [
+      { name: 'Google Drive', emoji: '📁', category: 'Tài liệu', link: 'https://drive.google.com' },
+      { name: 'Gmail', emoji: '📬', category: 'Công cụ', link: 'https://mail.google.com' },
+      { name: 'Google Calendar', emoji: '🗓', category: 'Quản lý', link: 'https://calendar.google.com' },
+    ];
+    demos.forEach((d, i) => {
+      cards.push({ id: Date.now() + i, emoji: d.emoji, name: d.name, category: d.category, link: d.link, colorIdx: i });
+    });
+    save();
+    renderCards();
+  }
+}
+</script>
+</body>
+</html>
