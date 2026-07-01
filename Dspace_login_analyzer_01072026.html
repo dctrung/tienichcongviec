@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phân tích log đăng nhập</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#0d0f14; --surface:#161a23; --surface2:#1e2331;
+  --border:#2a3045; --accent:#4f8ef7; --accent2:#38d9a9;
+  --warn:#f5a623; --text:#e8ecf4; --muted:#7a8299; --danger:#e25c5c;
+  --mono:'IBM Plex Mono',monospace; --sans:'DM Sans',sans-serif;
+  --radius:10px; --radius-lg:16px;
+}
+body { font-family:var(--sans); background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+header { padding:1rem 2rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.75rem; background:var(--surface); flex-shrink:0; }
+.logo { width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.logo svg { width:18px;height:18px;fill:#fff; }
+.brand h1 { font-size:.95rem;font-weight:600; }
+.brand p  { font-size:.7rem;color:var(--muted);font-weight:300; }
+main { flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0; }
+aside { background:var(--surface);border-right:1px solid var(--border);padding:1.1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem; }
+.lbl { font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.45rem; }
+
+/* ── Dropzone ── */
+#dropzone { border:1.5px dashed var(--border);border-radius:var(--radius-lg);padding:1.4rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative; }
+#dropzone:hover,#dropzone.drag-over { border-color:var(--accent);background:rgba(79,142,247,.07); }
+#dropzone input[type=file] { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%; }
+#dropzone .dz-icon { color:var(--accent);display:block;margin-bottom:.45rem; }
+#dropzone .dz-t { font-size:.82rem;font-weight:500;margin-bottom:.2rem; }
+#dropzone .dz-s { font-size:.68rem;color:var(--muted); }
+
+/* ── File queue ── */
+#file-queue { display:flex;flex-direction:column;gap:.35rem;margin-top:.5rem; }
+.fq-item { background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.45rem .6rem;display:flex;flex-direction:column;gap:.3rem; }
+.fq-top { display:flex;align-items:center;gap:.5rem; }
+.fq-name { font-family:var(--mono);font-size:.7rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text); }
+.fq-lines { font-size:.65rem;color:var(--muted);font-family:var(--mono);flex-shrink:0; }
+.fq-remove { background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0;line-height:1;flex-shrink:0;transition:color .15s; }
+.fq-remove:hover { color:var(--danger); }
+.fq-period { display:flex;align-items:center;gap:.4rem; }
+.fq-period label { font-size:.65rem;color:var(--muted);white-space:nowrap; }
+.fq-period input[type=text] {
+  flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  font-family:var(--mono);font-size:.7rem;padding:.3rem .45rem;border-radius:5px;outline:none;
+}
+.fq-period input[type=text]:focus { border-color:var(--accent); }
+.fq-period input[type=text]::placeholder { color:var(--muted); }
+.fq-status { font-size:.65rem;font-family:var(--mono); }
+.fq-status.ok { color:var(--accent2); }
+.fq-status.err { color:var(--danger); }
+#queue-empty { font-size:.74rem;color:var(--muted);text-align:center;padding:.5rem 0; }
+
+/* ── Controls ── */
+.cg { display:flex;flex-direction:column;gap:.4rem; }
+.cg label { font-size:.75rem;color:var(--muted); }
+.cg select { background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.82rem;padding:.45rem .7rem;border-radius:var(--radius);width:100%;outline:none;transition:border-color .2s; }
+.cg select:focus { border-color:var(--accent); }
+.btn { display:flex;align-items:center;justify-content:center;gap:.5rem;font-family:var(--sans);font-size:.82rem;font-weight:500;border:none;border-radius:var(--radius);cursor:pointer;padding:.6rem 1rem;transition:all .18s;width:100%; }
+.btn-primary { background:var(--accent);color:#fff; }
+.btn-primary:hover { background:#3a7ef5; }
+.btn-primary:disabled { background:#2a3350;color:var(--muted);cursor:not-allowed; }
+.btn-secondary { background:var(--surface2);color:var(--text);border:1px solid var(--border); }
+.btn-secondary:hover { border-color:var(--accent);color:var(--accent); }
+.btn-secondary:disabled { opacity:.4;cursor:not-allowed; }
+
+/* ── Stats ── */
+.stats-grid { display:grid;grid-template-columns:1fr 1fr;gap:.45rem; }
+.stat-card { background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem; }
+.stat-card .s-l { font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em; }
+.stat-card .s-v { font-size:1.25rem;font-weight:600;font-family:var(--mono);margin-top:.12rem;color:var(--accent); }
+.s-v.green{color:var(--accent2);} .s-v.warn{color:var(--warn);}
+
+/* ── Content ── */
+section.content { display:flex;flex-direction:column;overflow:hidden; }
+.tabs { display:flex;border-bottom:1px solid var(--border);background:var(--surface);display:none;flex-shrink:0; }
+.tab-btn { flex:1;padding:.65rem .8rem;background:none;border:none;color:var(--muted);font-family:var(--sans);font-size:.78rem;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--accent);border-bottom-color:var(--accent); }
+.tab-panel { display:none;flex:1;overflow:hidden;flex-direction:column; }
+.tab-panel.active { display:flex; }
+
+/* Toolbar */
+.toolbar { padding:.75rem 1.1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.6rem;background:var(--surface);flex-wrap:wrap;flex-shrink:0; }
+.sw { position:relative;flex:1;min-width:130px; }
+.sw svg { position:absolute;left:.5rem;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--muted);pointer-events:none; }
+.sw input[type=search] { width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.78rem;padding:.42rem .65rem .42rem 1.8rem;border-radius:var(--radius);outline:none;transition:border-color .2s; }
+.sw input:focus { border-color:var(--accent); }
+.sort-btn { background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.75rem;padding:.42rem .75rem;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;gap:.32rem;white-space:nowrap;transition:all .18s; }
+.sort-btn:hover { border-color:var(--accent);color:var(--accent); }
+.sort-btn svg { width:12px;height:12px;transition:transform .2s; }
+.sort-btn.asc svg.si { transform:rotate(180deg); }
+
+/* Table */
+.table-wrap { flex:1;overflow:auto; }
+table { width:100%;border-collapse:collapse;font-size:.78rem; }
+thead th { position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem 1rem;text-align:left;font-size:.62rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap; }
+thead th.right { text-align:right; }
+tbody tr { border-bottom:1px solid var(--border);transition:background .12s; }
+tbody tr:hover { background:var(--surface2); }
+tbody td { padding:.5rem 1rem; }
+tbody td:first-child { color:var(--muted);font-family:var(--mono);font-size:.7rem; }
+.uid { font-family:var(--mono);font-size:.75rem;word-break:break-all; }
+.email { color:var(--accent); }
+td.cc { text-align:right; }
+td.period-cell { font-family:var(--mono);font-size:.72rem;color:var(--warn); }
+.cb { display:inline-flex;align-items:center;justify-content:flex-end;gap:.4rem; }
+.bar { display:inline-block;height:5px;border-radius:3px;background:var(--accent);opacity:.35;min-width:2px; }
+.bar.pat { background:var(--accent2); }
+.cn { font-family:var(--mono);font-weight:500; }
+.rb { font-size:.6rem;font-family:var(--mono);font-weight:600;padding:.1rem .32rem;border-radius:4px;margin-left:3px; }
+.r1{background:rgba(245,166,35,.2);color:var(--warn);} .r2{background:rgba(232,236,244,.1);color:#bcc3d8;} .r3{background:rgba(205,127,50,.15);color:#c98a4b;}
+.pat-badge { font-family:var(--mono);font-size:.7rem;font-weight:600;background:rgba(79,142,247,.15);color:var(--accent);padding:.18rem .5rem;border-radius:5px;display:inline-block; }
+
+/* Pattern box */
+.pattern-box { background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.65rem; }
+.pattern-row { display:flex;flex-direction:column;gap:.3rem;padding:.5rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:.45rem; }
+.pattern-row .pr-top { display:flex;gap:.4rem;align-items:center; }
+.pattern-row input[type=text] { flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.75rem;padding:.38rem .5rem;border-radius:6px;outline:none; }
+.pattern-row input[type=text]:focus { border-color:var(--accent); }
+.pattern-row input[type=text].invalid { border-color:var(--danger); }
+.pattern-row .del-btn { background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:6px;width:26px;height:26px;cursor:pointer;transition:all .15s;flex-shrink:0;font-size:.78rem; }
+.pattern-row .del-btn:hover { border-color:var(--danger);color:var(--danger); }
+.pr-options { display:flex;gap:.45rem;align-items:center;flex-wrap:wrap; }
+.pr-mode-select { background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:.68rem;padding:.22rem .38rem;border-radius:5px;outline:none;cursor:pointer; }
+.pr-length-wrap { display:flex;align-items:center;gap:.28rem; }
+.pr-length-wrap label { font-size:.65rem;color:var(--muted);white-space:nowrap; }
+.pr-length-wrap input[type=number] { width:46px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.7rem;padding:.22rem .32rem;border-radius:5px;outline:none; }
+.pr-length-wrap input[type=number]:focus { border-color:var(--accent); }
+.pr-error { font-size:.64rem;color:var(--danger);display:none; }
+.pr-error.show { display:block; }
+.pattern-hint { font-size:.65rem;color:var(--muted);line-height:1.5;margin-top:.3rem; }
+.pattern-hint code { font-family:var(--mono);background:var(--bg);padding:1px 4px;border-radius:4px;color:var(--accent2); }
+#add-pattern-btn { background:none;border:1px dashed var(--border);color:var(--muted);font-size:.73rem;padding:.38rem;border-radius:6px;cursor:pointer;width:100%;transition:all .15s;margin-top:.2rem; }
+#add-pattern-btn:hover { border-color:var(--accent);color:var(--accent); }
+
+/* Pattern summary */
+.pat-summary-grid { padding:.9rem 1.1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem;border-bottom:1px solid var(--border);flex-shrink:0; }
+.pat-card { background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;display:flex;flex-direction:column; }
+.pat-card .pc-pattern { font-family:var(--mono);font-size:.73rem;font-weight:600;color:var(--accent);margin-bottom:.25rem;word-break:break-all; }
+.pat-card .pc-count { font-size:1.35rem;font-weight:600;font-family:var(--mono); }
+.pat-card .pc-sub { font-size:.63rem;color:var(--muted);margin-top:.12rem;line-height:1.4; }
+.pat-card .pc-bar-track { height:4px;background:var(--border);border-radius:2px;margin-top:.45rem;overflow:hidden; }
+.pat-card .pc-bar-fill { height:100%;background:var(--accent2);border-radius:2px; }
+.pat-card .pc-dl { margin-top:.5rem;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-family:var(--sans);font-size:.66rem;padding:.32rem;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.28rem;transition:all .15s; }
+.pat-card .pc-dl:hover { border-color:var(--accent);color:var(--accent); }
+.pat-card .pc-dl svg { width:10px;height:10px; }
+.pat-card .pc-dl:disabled { opacity:.4;cursor:not-allowed; }
+
+/* Misc */
+.placeholder { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;color:var(--muted);padding:3rem;text-align:center; }
+.placeholder svg { width:44px;height:44px;opacity:.18; }
+.placeholder p { font-size:.8rem;line-height:1.65; }
+#pb-wrap { height:3px;background:var(--border);display:none;flex-shrink:0; }
+#pb { height:100%;background:var(--accent);width:0%;transition:width .3s; }
+#toast { position:fixed;bottom:1.25rem;right:1.25rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.77rem;padding:.6rem .95rem;border-radius:var(--radius);display:none;align-items:center;gap:.5rem;z-index:999;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,.4); }
+#toast.show{display:flex;} #toast.success{border-color:var(--accent2);} #toast.error{border-color:var(--danger);}
+.export-section { margin-top:auto;padding-top:.7rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.42rem; }
+::-webkit-scrollbar{width:5px;height:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.divider { border:none;border-top:1px solid var(--border);margin:.1rem 0; }
+
+/* ── Month filter bar ── */
+.month-bar { padding:.55rem 1.1rem; border-bottom:1px solid var(--border); background:var(--bg); display:none; flex-shrink:0; overflow-x:auto; white-space:nowrap; gap:.4rem; align-items:center; }
+.month-bar.visible { display:flex; }
+.month-bar .mb-label { font-size:.62rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); flex-shrink:0; margin-right:.2rem; }
+.month-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-family:var(--mono); font-weight:500; padding:.28rem .65rem; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all .15s; flex-shrink:0; white-space:nowrap; }
+.month-pill:hover { border-color:var(--accent); color:var(--accent); }
+.month-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.month-pill .mp-count { font-size:.62rem; opacity:.75; }
+.month-pill.all-pill { border-style:dashed; }
+.month-pill.all-pill.active { background:var(--surface2); border-color:var(--accent2); color:var(--accent2); border-style:solid; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><svg viewBox="0 0 24 24"><path d="M3 3h18v3H3V3zm0 5h12v2H3V8zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg></div>
+  <div class="brand">
+    <h1>Phân tích log đăng nhập</h1>
+    <p>DSpace EPersonRestAuthenticationProvider · Hỗ trợ nhiều file · Thống kê theo nhóm tài khoản</p>
+  </div>
+</header>
+
+<main>
+<aside>
+
+  <!-- ── Khu vực upload ── -->
+  <div>
+    <div class="lbl">Danh sách file log</div>
+    <div id="dropzone">
+      <input type="file" id="fi" accept=".txt,.log" multiple>
+      <span class="dz-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="30" height="30">
+          <path stroke-linecap="round" d="M12 16.5v-9m0 0l-3.75 3.75M12 7.5l3.75 3.75M3 17.25A2.25 2.25 0 005.25 19.5h13.5A2.25 2.25 0 0021 17.25V15"/>
+        </svg>
+      </span>
+      <div class="dz-t">Kéo thả hoặc nhấp để chọn</div>
+      <div class="dz-s">Chọn <strong>nhiều file</strong> cùng lúc · .txt / .log</div>
+    </div>
+    <div id="file-queue"><div id="queue-empty">Chưa có file nào được chọn.</div></div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── Loại login ── -->
+  <div class="cg">
+    <label>Loại login lọc</label>
+    <select id="lt">
+      <option value="explicit">explicit</option>
+      <option value="implicit">implicit</option>
+      <option value="">Tất cả</option>
+    </select>
+  </div>
+
+  <!-- ── Mẫu tài khoản ── -->
+  <div>
+    <div class="lbl">Mẫu tài khoản cần thống kê</div>
+    <div class="pattern-box">
+      <div id="pattern-list"></div>
+      <button id="add-pattern-btn">+ Thêm mẫu</button>
+      <div class="pattern-hint">
+        <strong>Wildcard</strong>: <code>18*</code> hoặc <code>*@agu.edu.vn</code><br>
+        <strong>Tiền tố + độ dài</strong>: khớp chính xác số ký tự<br>
+        <strong>Regex</strong>: <code>^18\d{11}$</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Nút phân tích ── -->
+  <div>
+    <button class="btn btn-primary" id="btn-a" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+      Phân tích log
+    </button>
+  </div>
+
+  <!-- ── Stats tổng quan ── -->
+  <div id="ss" style="display:none">
+    <div class="lbl">Tổng quan</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="s-l">File đã gộp</div><div class="s-v warn" id="st-files">0</div></div>
+      <div class="stat-card"><div class="s-l">Người dùng</div><div class="s-v green" id="su">0</div></div>
+      <div class="stat-card"><div class="s-l">Tổng lượt</div><div class="s-v" id="sl">0</div></div>
+      <div class="stat-card"><div class="s-l">Hiển thị</div><div class="s-v" id="sh">0</div></div>
+    </div>
+  </div>
+
+  <!-- ── Export ── -->
+  <div id="es" class="export-section" style="display:none">
+    <div class="lbl">Xuất kết quả (tổng hợp)</div>
+    <button class="btn btn-secondary" id="btn-csv">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path stroke-linecap="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+      Tải về CSV
+    </button>
+    <button class="btn btn-secondary" id="btn-xl">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M3 9h18M9 21V9"/></svg>
+      Tải về Excel (TSV)
+    </button>
+    <button class="btn btn-secondary" id="btn-cp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path stroke-linecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      Copy (TSV)
+    </button>
+  </div>
+
+</aside>
+
+<section class="content">
+  <div id="pb-wrap"><div id="pb"></div></div>
+
+  <!-- Month filter bar -->
+  <div class="month-bar" id="month-bar">
+    <span class="mb-label">Tháng</span>
+    <!-- pills được render động bằng JS -->
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="detail">Chi tiết người dùng</button>
+    <button class="tab-btn" data-tab="pattern">Thống kê theo mẫu</button>
+    <button class="tab-btn" data-tab="byfile">Theo từng file</button>
+  </div>
+
+  <!-- ── Tab: Chi tiết người dùng ── -->
+  <div class="tab-panel active" id="panel-detail">
+    <div class="toolbar">
+      <div class="sw">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="si" placeholder="Tìm mã số hoặc email...">
+      </div>
+      <button class="sort-btn" id="sb">
+        <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>
+        Nhiều nhất
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48px">#</th>
+            <th>Mã số / Email người dùng</th>
+            <th style="width:110px">Khoảng thời gian</th>
+            <th class="right" style="width:140px">Số lần đăng nhập</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Tab: Thống kê theo mẫu ── -->
+  <div class="tab-panel" id="panel-pattern">
+    <div class="pat-summary-grid" id="pat-summary"></div>
+    <div class="toolbar">
+      <div class="sw">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="si2" placeholder="Tìm mã số hoặc email...">
+      </div>
+      <button class="sort-btn" id="sb2">
+        <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>
+        Nhiều nhất
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48px">#</th>
+            <th>Mã số / Email người dùng</th>
+            <th style="width:105px">Mẫu khớp</th>
+            <th style="width:110px">Khoảng thời gian</th>
+            <th class="right" style="width:140px">Số lần đăng nhập</th>
+          </tr>
+        </thead>
+        <tbody id="tbody2"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Tab: Theo từng file ── -->
+  <div class="tab-panel" id="panel-byfile">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48px">#</th>
+            <th>Tên file</th>
+            <th style="width:140px">Khoảng thời gian</th>
+            <th class="right" style="width:120px">Người dùng</th>
+            <th class="right" style="width:120px">Tổng lượt login</th>
+            <th style="width:80px">Tải về</th>
+          </tr>
+        </thead>
+        <tbody id="tbody3"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Placeholder -->
+  <div class="placeholder" id="ph">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <path stroke-linecap="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    <p>Chọn <strong>một hoặc nhiều file log</strong> DSpace (.txt),<br>nhập khoảng thời gian cho từng file,<br>cấu hình mẫu tài khoản rồi nhấn <strong>Phân tích log</strong>.</p>
+  </div>
+</section>
+</main>
+
+<div id="toast" role="alert" aria-live="polite"></div>
+
+<script>
+(function(){
+
+/* ════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════ */
+let fileQueue   = [];   // [{file, content, period, lines}]
+let rows        = [];   // [{userId, count, period}] — kết quả tổng hợp toàn bộ file
+let filtered    = [];
+let sortDesc    = true;
+let maxC        = 1;
+
+let patFiltered   = [];
+let patSortDesc   = true;
+let patternResults= [];
+let groupedByPattern = {};
+
+let fileStats    = []; // [{name, period, userCount, loginCount, rows}]
+let allRows      = []; // bản gốc rows trước lọc tháng
+let activePeriod = 'all'; // 'all' hoặc period cụ thể vd 'T12/2024'
+
+/* ════════════════════════════════════════════
+   DOM
+════════════════════════════════════════════ */
+const dz        = document.getElementById('dropzone');
+const fi        = document.getElementById('fi');
+const queueEl   = document.getElementById('file-queue');
+const queueEmpty= document.getElementById('queue-empty');
+const ba        = document.getElementById('btn-a');
+const lt        = document.getElementById('lt');
+const ss        = document.getElementById('ss');
+const es        = document.getElementById('es');
+const ph        = document.getElementById('ph');
+const tabs      = document.getElementById('tabs');
+const tbody     = document.getElementById('tbody');
+const tbody2    = document.getElementById('tbody2');
+const tbody3    = document.getElementById('tbody3');
+const si        = document.getElementById('si');
+const si2       = document.getElementById('si2');
+const sb        = document.getElementById('sb');
+const sb2       = document.getElementById('sb2');
+const pbw       = document.getElementById('pb-wrap');
+const pb        = document.getElementById('pb');
+const patSummary= document.getElementById('pat-summary');
+const patternList=document.getElementById('pattern-list');
+const monthBar   = document.getElementById('month-bar');
+
+/* ════════════════════════════════════════════
+   FILE QUEUE
+════════════════════════════════════════════ */
+fi.addEventListener('change', e => addFiles(Array.from(e.target.files)));
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+
+function addFiles(files) {
+  const toAdd = files.filter(f => !fileQueue.find(q => q.file.name === f.name));
+  if (!toAdd.length) { toast('error', 'File đã có trong danh sách.'); return; }
+
+  let pending = toAdd.length;
+  toAdd.forEach(file => {
+    const entry = { file, content: null, period: autoDetectPeriod(file.name), lines: 0 };
+    fileQueue.push(entry);
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      entry.content = ev.target.result;
+      entry.lines   = entry.content.split('\n').length;
+      const itemEl  = queueEl.querySelector(`[data-fname="${CSS.escape(file.name)}"]`);
+      if (itemEl) {
+        itemEl.querySelector('.fq-status').textContent = entry.lines.toLocaleString('vi') + ' dòng';
+        itemEl.querySelector('.fq-status').className = 'fq-status ok';
+      }
+      pending--;
+      if (pending === 0) checkReady();
+    };
+    reader.onerror = () => {
+      entry.error = true;
+      const itemEl = queueEl.querySelector(`[data-fname="${CSS.escape(file.name)}"]`);
+      if (itemEl) { itemEl.querySelector('.fq-status').textContent = 'Lỗi đọc file'; itemEl.querySelector('.fq-status').className = 'fq-status err'; }
+      pending--;
+      if (pending === 0) checkReady();
+    };
+    reader.readAsText(file, 'UTF-8');
+    renderQueueItem(entry);
+  });
+
+  queueEmpty.style.display = 'none';
+  toast('success', `Đã thêm ${toAdd.length} file vào danh sách`);
+}
+
+// Tự phát hiện khoảng thời gian từ tên file: login_dec2024.txt → Tháng 12/2024
+function autoDetectPeriod(name) {
+  const n = name.toLowerCase();
+  const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+                   jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12',
+                   t1:'01',t2:'02',t3:'03',t4:'04',t5:'05',t6:'06',
+                   t7:'07',t8:'08',t9:'09',t10:'10',t11:'11',t12:'12' };
+  // Thử pattern: "2024_12" hoặc "12_2024" hoặc "dec_2024"
+  let m, yr;
+  const yMatch = n.match(/20(\d{2})/);
+  if (yMatch) yr = '20' + yMatch[1];
+
+  for (const [k, v] of Object.entries(months)) {
+    if (n.includes('_' + k) || n.includes(k + '_') || n.includes('-' + k) || n.includes(k + '-') || n.endsWith(k) || n.includes(k + '.')) {
+      m = v; break;
+    }
+  }
+  // Cũng thử _12_ hoặc -12-
+  if (!m) { const nm = n.match(/[-_](0?[1-9]|1[0-2])[-_.]/); if (nm) m = nm[1].padStart(2,'0'); }
+
+  if (m && yr) return `T${parseInt(m,10)}/${yr}`;
+  if (yr)      return yr;
+  return '';
+}
+
+function renderQueueItem(entry) {
+  const fname = entry.file.name;
+  const el = document.createElement('div');
+  el.className = 'fq-item';
+  el.dataset.fname = fname;
+  el.innerHTML = `
+    <div class="fq-top">
+      <span class="fq-name" title="${esc(fname)}">${esc(fname)}</span>
+      <span class="fq-status" style="color:var(--muted)">Đang đọc...</span>
+      <button class="fq-remove" title="Xóa">✕</button>
+    </div>
+    <div class="fq-period">
+      <label>Khoảng thời gian:</label>
+      <input type="text" value="${esc(entry.period)}" placeholder="vd: T12/2024 hoặc Q1-2025">
+    </div>`;
+  el.querySelector('.fq-remove').addEventListener('click', () => removeFile(fname, el));
+  el.querySelector('input[type=text]').addEventListener('input', ev => {
+    const q = fileQueue.find(q => q.file.name === fname);
+    if (q) q.period = ev.target.value.trim();
+  });
+  queueEl.appendChild(el);
+}
+
+function removeFile(fname, el) {
+  fileQueue = fileQueue.filter(q => q.file.name !== fname);
+  el.remove();
+  if (fileQueue.length === 0) { queueEmpty.style.display = 'block'; ba.disabled = true; }
+  checkReady();
+}
+
+function checkReady() {
+  const ready = fileQueue.length > 0 && fileQueue.every(q => q.content !== null && !q.error);
+  ba.disabled = !ready;
+}
+
+/* ════════════════════════════════════════════
+   PATTERN CONFIG
+════════════════════════════════════════════ */
+const DEFAULT_PATTERNS = [
+  { mode:'wildcard', value:'18*', prefix:'', length:'' },
+  { mode:'wildcard', value:'16*', prefix:'', length:'' },
+  { mode:'wildcard', value:'19*', prefix:'', length:'' },
+];
+let patternRowId = 0;
+
+function addPatternRow(cfg) {
+  cfg = cfg || { mode:'wildcard', value:'', prefix:'', length:'' };
+  const id = 'pr' + (patternRowId++);
+  const row = document.createElement('div');
+  row.className = 'pattern-row';
+  row.dataset.id = id;
+  row.innerHTML = `
+    <div class="pr-top">
+      <select class="pr-mode-select" data-role="mode">
+        <option value="wildcard">Wildcard (*)</option>
+        <option value="length">Tiền tố + độ dài</option>
+        <option value="regex">Regex</option>
+      </select>
+      <button class="del-btn" title="Xóa mẫu">✕</button>
+    </div>
+    <div class="pr-body" data-role="body"></div>
+    <div class="pr-error" data-role="err"></div>`;
+  patternList.appendChild(row);
+  const ms = row.querySelector('[data-role=mode]');
+  ms.value = cfg.mode;
+  ms.addEventListener('change', () => renderRowBody(row, ms.value));
+  row.querySelector('.del-btn').addEventListener('click', () => row.remove());
+  renderRowBody(row, cfg.mode, cfg);
+}
+
+function renderRowBody(row, mode, cfg) {
+  cfg = cfg || {};
+  const body = row.querySelector('[data-role=body]');
+  if (mode === 'wildcard') {
+    body.innerHTML = `<input type="text" data-role="value" placeholder="vd: 18* hoặc *@agu.edu.vn" value="${esc(cfg.value||'')}">`;
+  } else if (mode === 'length') {
+    body.innerHTML = `<div class="pr-options">
+      <div class="pr-length-wrap"><label>Tiền tố</label><input type="text" data-role="prefix" placeholder="18" value="${esc(cfg.prefix||'')}" style="width:56px"></div>
+      <div class="pr-length-wrap"><label>Độ dài</label><input type="number" data-role="length" min="1" max="64" placeholder="13" value="${esc(cfg.length||'')}"></div>
+    </div>`;
+  } else {
+    body.innerHTML = `<input type="text" data-role="value" placeholder="vd: ^18\\d{11}$" value="${esc(cfg.value||'')}">`;
+  }
+  const err = row.querySelector('[data-role=err]');
+  err.classList.remove('show'); err.textContent = '';
+}
+
+DEFAULT_PATTERNS.forEach(p => addPatternRow(p));
+document.getElementById('add-pattern-btn').addEventListener('click', () => addPatternRow());
+
+function getActivePatterns() {
+  const out = [];
+  patternList.querySelectorAll('.pattern-row').forEach(row => {
+    const mode = row.querySelector('[data-role=mode]').value;
+    const errEl = row.querySelector('[data-role=err]');
+    errEl.classList.remove('show'); errEl.textContent = '';
+    row.querySelectorAll('input').forEach(i => i.classList.remove('invalid'));
+
+    if (mode === 'wildcard') {
+      const valEl = row.querySelector('[data-role=value]');
+      const val   = (valEl.value||'').trim();
+      if (!val) return;
+      let re;
+      try { re = new RegExp('^' + val.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*') + '$','i'); }
+      catch(e) { valEl.classList.add('invalid'); errEl.textContent='Mẫu lỗi'; errEl.classList.add('show'); return; }
+      out.push({ id:row.dataset.id, mode, label:val, matcher: uid => re.test(uid) });
+
+    } else if (mode === 'length') {
+      const prefEl = row.querySelector('[data-role=prefix]');
+      const lenEl  = row.querySelector('[data-role=length]');
+      const prefix = (prefEl ? prefEl.value : '').trim();
+      const len    = parseInt(lenEl ? lenEl.value : '', 10);
+      if (!prefix && !len) return;
+      const label  = (prefix||'∅') + (len ? ' · ' + len + ' ký tự' : '');
+      out.push({ id:row.dataset.id, mode, label, matcher: uid => {
+        const okP = !prefix || uid.toLowerCase().startsWith(prefix.toLowerCase());
+        const okL = !len    || uid.length === len;
+        return okP && okL;
+      }});
+
+    } else {
+      const valEl = row.querySelector('[data-role=value]');
+      const val   = (valEl.value||'').trim();
+      if (!val) return;
+      let re;
+      try { re = new RegExp(val,'i'); }
+      catch(e) { valEl.classList.add('invalid'); errEl.textContent='Regex lỗi: '+e.message; errEl.classList.add('show'); return; }
+      out.push({ id:row.dataset.id, mode, label:val, matcher: uid => re.test(uid) });
+    }
+  });
+  return out;
+}
+
+/* ════════════════════════════════════════════
+   ANALYZE
+════════════════════════════════════════════ */
+ba.addEventListener('click', analyze);
+
+function analyze() {
+  const validFiles = fileQueue.filter(q => q.content && !q.error);
+  if (!validFiles.length) return;
+
+  pbw.style.display = 'block'; pb.style.width = '0%';
+  ba.disabled = true; ba.textContent = 'Đang xử lý...';
+
+  setTimeout(() => {
+    try {
+      const tf = lt.value;
+
+      // Parse từng file riêng → dùng cho Tab "Theo từng file"
+      fileStats = validFiles.map(entry => {
+        const r = parseLog(entry.content, tf);
+        return { name: entry.file.name, period: entry.period || '—', userCount: r.uniqueUsers, loginCount: r.totalLogins, rows: r.rows };
+      });
+
+
+      // allRows: mỗi dòng là {userId, count, period} theo từng file/tháng riêng
+      // Một user xuất hiện ở 2 tháng → 2 dòng riêng → khi lọc tháng sẽ dùng nguồn này
+      allRows = [];
+      validFiles.forEach(entry => {
+        const r = parseLog(entry.content, tf);
+        r.rows.forEach(row => {
+          allRows.push({ userId: row.userId, count: row.count, period: entry.period || '—' });
+        });
+      });
+
+      // Mặc định hiển thị tổng hợp tất cả tháng
+      activePeriod = 'all';
+      rows = buildAggregatedRows(allRows);
+      filtered = [...rows];
+      maxC = rows.length > 0 ? rows[0].count : 1;
+
+      const totalLogins = rows.reduce((s,r) => s + r.count, 0);
+
+      document.getElementById('st-files').textContent = validFiles.length;
+      document.getElementById('su').textContent = rows.length.toLocaleString('vi');
+      document.getElementById('sl').textContent = totalLogins.toLocaleString('vi');
+
+      buildMonthPills();
+      computePatterns();
+      render();
+      renderPatternTab();
+      renderFileTab();
+
+      ph.style.display    = 'none';
+      tabs.style.display  = 'flex';
+      ss.style.display    = 'block';
+      es.style.display    = 'flex';
+      pb.style.width      = '100%';
+      setTimeout(() => { pbw.style.display = 'none'; pb.style.width = '0%'; }, 400);
+      toast('success', `Đã gộp ${validFiles.length} file · ${rows.length.toLocaleString('vi')} người dùng · ${totalLogins.toLocaleString('vi')} lượt login`);
+    } catch(e) {
+      toast('error', 'Lỗi: ' + e.message);
+      pbw.style.display = 'none';
+    }
+    ba.textContent = 'Phân tích log';
+    ba.disabled = false;
+    checkReady();
+  }, 60);
+}
+
+/* ════════════════════════════════════════════
+   MONTH FILTER
+════════════════════════════════════════════ */
+
+// Gộp allRows → rows tổng hợp (dùng cho chế độ 'all' hoặc sau khi lọc 1 tháng)
+// source: mảng [{userId, count, period}]
+// Khi 1 tháng: giữ nguyên, period là tháng đó
+// Khi all: gộp count, period là danh sách tháng
+function buildAggregatedRows(source) {
+  const map = {}; // userId -> { count, periods: Set }
+  source.forEach(r => {
+    if (!map[r.userId]) map[r.userId] = { count: 0, periods: new Set() };
+    map[r.userId].count += r.count;
+    if (r.period && r.period !== '—') map[r.userId].periods.add(r.period);
+  });
+  return Object.entries(map).map(([uid, v]) => ({
+    userId: uid,
+    count:  v.count,
+    period: v.periods.size > 0 ? [...v.periods].sort().join(', ') : '—'
+  })).sort((a,b) => b.count - a.count);
+}
+
+// Lấy danh sách tháng duy nhất từ allRows, giữ thứ tự xuất hiện
+function getUniquePeriods() {
+  const seen = new Set();
+  const list = [];
+  allRows.forEach(r => { if (r.period && r.period !== '—' && !seen.has(r.period)) { seen.add(r.period); list.push(r.period); } });
+  return list;
+}
+
+// Xây dựng pills lọc tháng
+function buildMonthPills() {
+  const periods = getUniquePeriods();
+  if (periods.length <= 1) {
+    // Chỉ 1 tháng hoặc không có → ẩn month-bar
+    monthBar.classList.remove('visible');
+    return;
+  }
+  monthBar.classList.add('visible');
+  // Đếm user theo từng tháng để hiển thị con số trên pill
+  const countByPeriod = {};
+  periods.forEach(p => { countByPeriod[p] = 0; });
+  allRows.forEach(r => { if (r.period in countByPeriod) countByPeriod[r.period]++; });
+
+  // Giữ lại label
+  const label = monthBar.querySelector('.mb-label') || (() => {
+    const s = document.createElement('span'); s.className = 'mb-label'; s.textContent = 'Tháng';
+    monthBar.appendChild(s); return s;
+  })();
+  // Xóa pills cũ
+  monthBar.querySelectorAll('.month-pill').forEach(p => p.remove());
+
+  // Pill "Tất cả"
+  const allPill = document.createElement('button');
+  allPill.className = 'month-pill all-pill active';
+  allPill.dataset.period = 'all';
+  const totalUsers = new Set(allRows.map(r => r.userId)).size;
+  allPill.innerHTML = `Tất cả <span class="mp-count">(${totalUsers.toLocaleString('vi')})</span>`;
+  allPill.addEventListener('click', () => applyMonthFilter('all'));
+  monthBar.appendChild(allPill);
+
+  // Pills từng tháng
+  periods.forEach(p => {
+    const pill = document.createElement('button');
+    pill.className = 'month-pill';
+    pill.dataset.period = p;
+    pill.innerHTML = `${esc(p)} <span class="mp-count">(${countByPeriod[p].toLocaleString('vi')})</span>`;
+    pill.addEventListener('click', () => applyMonthFilter(p));
+    monthBar.appendChild(pill);
+  });
+}
+
+// Áp dụng lọc tháng — cập nhật rows, filtered, stats và re-render tất cả
+function applyMonthFilter(period) {
+  activePeriod = period;
+
+  // Cập nhật pills active state
+  monthBar.querySelectorAll('.month-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.period === period);
+  });
+
+  // Lọc allRows theo tháng
+  const source = period === 'all' ? allRows : allRows.filter(r => r.period === period);
+  rows     = buildAggregatedRows(source);
+  filtered = [...rows];
+  maxC     = rows.length > 0 ? rows[0].count : 1;
+  si.value = ''; si2.value = '';
+
+  // Cập nhật stat cards
+  const totalLogins = rows.reduce((s,r) => s + r.count, 0);
+  document.getElementById('su').textContent = rows.length.toLocaleString('vi');
+  document.getElementById('sl').textContent = totalLogins.toLocaleString('vi');
+
+  // Re-render tất cả tab
+  computePatterns();
+  render();
+  renderPatternTab();
+  // Tab "Theo từng file" không lọc theo tháng (hiển thị tất cả file)
+
+  const label = period === 'all' ? 'Tất cả tháng' : period;
+  toast('success', `Đang xem: ${label} · ${rows.length.toLocaleString('vi')} người dùng`);
+}
+
+function parseLog(content, tf) {
+  const lines = content.split('\n');
+  const map   = {};
+  const re    = /@ (.+?)::login:type=(\w+)/;
+  let tl = 0;
+  lines.forEach(l => {
+    const m = l.trim().match(re);
+    if (!m) return;
+    const uid = m[1].trim(), t = m[2].trim();
+    if (tf && t !== tf) return;
+    map[uid] = (map[uid] || 0) + 1;
+    tl++;
+  });
+  const r = Object.entries(map).map(([uid,c]) => ({ userId:uid, count:c })).sort((a,b) => b.count - a.count);
+  return { rows:r, totalLines:lines.length, uniqueUsers:r.length, totalLogins:tl };
+}
+
+/* ════════════════════════════════════════════
+   RENDER - CHI TIẾT
+════════════════════════════════════════════ */
+function render() {
+  document.getElementById('sh').textContent = filtered.length.toLocaleString('vi');
+  const sorted = sortDesc ? [...filtered].sort((a,b) => b.count - a.count) : [...filtered].sort((a,b) => a.count - b.count);
+  const frag = document.createDocumentFragment();
+  sorted.forEach((r, i) => {
+    const tr  = document.createElement('tr');
+    const isE = r.userId.includes('@');
+    const rb  = i===0 ? '<span class="rb r1">#1</span>' : i===1 ? '<span class="rb r2">#2</span>' : i===2 ? '<span class="rb r3">#3</span>' : '';
+    const bw  = Math.max(2, Math.round((r.count / maxC) * 68));
+    tr.innerHTML = `<td>${i+1}</td>
+      <td class="uid${isE?' email':''}">${esc(r.userId)}${rb}</td>
+      <td class="period-cell">${esc(r.period)}</td>
+      <td class="cc"><span class="cb"><span class="bar" style="width:${bw}px"></span><span class="cn">${r.count.toLocaleString('vi')}</span></span></td>`;
+    frag.appendChild(tr);
+  });
+  tbody.innerHTML = ''; tbody.appendChild(frag);
+}
+
+si.addEventListener('input', () => {
+  const q = si.value.trim().toLowerCase();
+  filtered = q ? rows.filter(r => r.userId.toLowerCase().includes(q)) : [...rows];
+  render();
+});
+sb.addEventListener('click', () => {
+  sortDesc = !sortDesc;
+  sb.classList.toggle('asc', !sortDesc);
+  sb.innerHTML = `<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>${sortDesc?'Nhiều nhất':'Ít nhất'}`;
+  render();
+});
+
+/* ════════════════════════════════════════════
+   RENDER - THEO FILE
+════════════════════════════════════════════ */
+function renderFileTab() {
+  const frag = document.createDocumentFragment();
+  fileStats.forEach((f, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td class="uid" style="color:var(--text)">${esc(f.name)}</td>
+      <td class="period-cell">${esc(f.period)}</td>
+      <td class="cc"><span class="cn">${f.userCount.toLocaleString('vi')}</span></td>
+      <td class="cc"><span class="cn">${f.loginCount.toLocaleString('vi')}</span></td>
+      <td><button class="sort-btn" data-fidx="${i}" style="width:100%;justify-content:center">CSV</button></td>`;
+    tr.querySelector('button').addEventListener('click', () => exportFileCSV(i));
+    frag.appendChild(tr);
+  });
+  tbody3.innerHTML = ''; tbody3.appendChild(frag);
+}
+
+function exportFileCSV(idx) {
+  const f = fileStats[idx];
+  if (!f) return;
+  let csv = `STT,Ma nguoi dung / Email,So lan dang nhap,Khoang thoi gian\n`;
+  f.rows.sort((a,b) => b.count - a.count).forEach((r, i) => {
+    const u = r.userId.includes(',') ? `"${r.userId}"` : r.userId;
+    csv += `${i+1},${u},${r.count},"${f.period}"\n`;
+  });
+  const safe = f.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+  dl(csv, `${safe}_stats.csv`, 'text/csv;charset=utf-8;');
+  toast('success', `Đã tải về CSV của "${f.name}"`);
+}
+
+/* ════════════════════════════════════════════
+   PATTERN
+════════════════════════════════════════════ */
+function computePatterns() {
+  const patterns = getActivePatterns();
+  const matched  = [];
+  groupedByPattern = {};
+  patterns.forEach(p => { groupedByPattern[p.id] = { label:p.label, mode:p.mode, rows:[] }; });
+
+  rows.forEach(r => {
+    for (const p of patterns) {
+      if (p.matcher(r.userId)) {
+        matched.push({ userId:r.userId, count:r.count, period:r.period, patternId:p.id, label:p.label });
+        groupedByPattern[p.id].rows.push(r);
+        break;
+      }
+    }
+  });
+
+  patternResults = matched;
+  patFiltered    = [...matched];
+  const totalMatched = matched.length;
+
+  patSummary.innerHTML = patterns.map(p => {
+    const g         = groupedByPattern[p.id];
+    const userCount = g.rows.length;
+    const loginCount= g.rows.reduce((s,r) => s + r.count, 0);
+    const pct       = rows.length > 0 ? Math.round((userCount / rows.length) * 100) : 0;
+    return `<div class="pat-card">
+      <div class="pc-pattern">${esc(p.label)}</div>
+      <div class="pc-count">${userCount.toLocaleString('vi')}</div>
+      <div class="pc-sub">${loginCount.toLocaleString('vi')} lượt đăng nhập<br>${pct}% tổng số người dùng</div>
+      <div class="pc-bar-track"><div class="pc-bar-fill" style="width:${pct}%"></div></div>
+      <button class="pc-dl" data-pid="${p.id}" ${userCount===0?'disabled':''}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Tải CSV riêng
+      </button>
+    </div>`;
+  }).join('') + (patterns.length === 0
+    ? '<div style="grid-column:1/-1; color:var(--muted); font-size:.75rem; padding:.5rem;">Chưa cấu hình mẫu.</div>'
+    : `<div class="pat-card" style="border-color:var(--accent)">
+        <div class="pc-pattern" style="color:var(--accent2)">Không khớp mẫu nào</div>
+        <div class="pc-count">${(rows.length-totalMatched).toLocaleString('vi')}</div>
+        <div class="pc-sub">${Math.round(((rows.length-totalMatched)/Math.max(rows.length,1))*100)}% tổng số</div>
+      </div>`);
+
+  patSummary.querySelectorAll('.pc-dl').forEach(btn => {
+    btn.addEventListener('click', () => exportPatternGroup(btn.dataset.pid));
+  });
+}
+
+function exportPatternGroup(pid) {
+  const g = groupedByPattern[pid];
+  if (!g || !g.rows.length) return;
+  const sorted = [...g.rows].sort((a,b) => b.count - a.count);
+  let csv = 'STT,Ma nguoi dung / Email,So lan dang nhap,Khoang thoi gian\n';
+  sorted.forEach((r, i) => {
+    const u = r.userId.includes(',') ? `"${r.userId}"` : r.userId;
+    csv += `${i+1},${u},${r.count},"${r.period||'—'}"\n`;
+  });
+  const safe = g.label.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40) || 'pattern';
+  dl(csv, `login_mau_${safe}.csv`, 'text/csv;charset=utf-8;');
+  toast('success', `Đã tải về nhóm "${g.label}" — ${g.rows.length.toLocaleString('vi')} người dùng`);
+}
+
+function renderPatternTab() {
+  const maxPc  = patFiltered.length > 0 ? Math.max(...patFiltered.map(r => r.count)) : 1;
+  const sorted = patSortDesc ? [...patFiltered].sort((a,b) => b.count-a.count) : [...patFiltered].sort((a,b) => a.count-b.count);
+  const frag   = document.createDocumentFragment();
+  sorted.forEach((r, i) => {
+    const tr  = document.createElement('tr');
+    const isE = r.userId.includes('@');
+    const bw  = Math.max(2, Math.round((r.count / maxPc) * 58));
+    tr.innerHTML = `<td>${i+1}</td>
+      <td class="uid${isE?' email':''}">${esc(r.userId)}</td>
+      <td><span class="pat-badge">${esc(r.label)}</span></td>
+      <td class="period-cell">${esc(r.period)}</td>
+      <td class="cc"><span class="cb"><span class="bar pat" style="width:${bw}px"></span><span class="cn">${r.count.toLocaleString('vi')}</span></span></td>`;
+    frag.appendChild(tr);
+  });
+  tbody2.innerHTML = ''; tbody2.appendChild(frag);
+}
+
+si2.addEventListener('input', () => {
+  const q = si2.value.trim().toLowerCase();
+  patFiltered = q ? patternResults.filter(r => r.userId.toLowerCase().includes(q)) : [...patternResults];
+  renderPatternTab();
+});
+sb2.addEventListener('click', () => {
+  patSortDesc = !patSortDesc;
+  sb2.classList.toggle('asc', !patSortDesc);
+  sb2.innerHTML = `<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path stroke-linecap="round" d="M3 6h18M7 12h10M11 18h2"/></svg>${patSortDesc?'Nhiều nhất':'Ít nhất'}`;
+  renderPatternTab();
+});
+
+/* ════════════════════════════════════════════
+   TABS
+════════════════════════════════════════════ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ════════════════════════════════════════════
+   EXPORT TỔNG HỢP
+════════════════════════════════════════════ */
+function buildExportRows() {
+  return [...filtered].sort((a,b) => sortDesc ? b.count - a.count : a.count - b.count);
+}
+document.getElementById('btn-csv').addEventListener('click', () => {
+  if (!rows.length) return;
+  let c = 'STT,Ma nguoi dung / Email,So lan dang nhap,Khoang thoi gian\n';
+  buildExportRows().forEach((r,i) => {
+    const u = r.userId.includes(',') ? `"${r.userId}"` : r.userId;
+    c += `${i+1},${u},${r.count},"${r.period||'—'}"\n`;
+  });
+  dl(c, 'login_statistics.csv', 'text/csv;charset=utf-8;');
+  toast('success', 'Đã tải về CSV tổng hợp');
+});
+document.getElementById('btn-xl').addEventListener('click', () => {
+  if (!rows.length) return;
+  let t = 'STT\tMa nguoi dung / Email\tSo lan dang nhap\tKhoang thoi gian\n';
+  buildExportRows().forEach((r,i) => { t += `${i+1}\t${r.userId}\t${r.count}\t${r.period||'—'}\n`; });
+  dl('\uFEFF' + t, 'login_statistics.tsv', 'text/tab-separated-values;charset=utf-8;');
+  toast('success', 'Đã tải về TSV — mở bằng Excel');
+});
+document.getElementById('btn-cp').addEventListener('click', () => {
+  if (!rows.length) return;
+  let t = 'STT\tMa nguoi dung / Email\tSo lan dang nhap\tKhoang thoi gian\n';
+  buildExportRows().forEach((r,i) => { t += `${i+1}\t${r.userId}\t${r.count}\t${r.period||'—'}\n`; });
+  navigator.clipboard.writeText(t)
+    .then(() => toast('success', 'Đã copy — paste vào Excel/Sheets'))
+    .catch(() => toast('error', 'Không thể copy'));
+});
+
+/* ════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════ */
+function dl(content, filename, mime) {
+  const b = new Blob([content], { type: mime });
+  const u = URL.createObjectURL(b);
+  const a = document.createElement('a');
+  a.href = u; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(u); }, 100);
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let toastTimer;
+function toast(type, msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3800);
+}
+
+})();
+</script>
+</body>
+</html>
