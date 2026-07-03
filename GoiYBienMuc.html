@@ -244,14 +244,6 @@
 
   <section class="card">
     <h2 class="card-title"><span class="tag">API</span> Kết nối tới Apps Script Proxy</h2>
-    <div class="banner">
-      <strong>Vì sao không dùng fetch() thông thường?</strong> Bản trước dùng <code>fetch()</code> POST tới
-      Apps Script Web App và bị lỗi "Failed to fetch". Google <u>không có tài liệu chính thức</u> giải thích
-      hành vi CORS của Web App trong trường hợp này — nhưng nhiều lập trình viên độc lập báo cáo cùng một nguyên nhân:
-      Apps Script không phản hồi đúng cách với request "preflight" (OPTIONS) mà trình duyệt tự động gửi trước request POST,
-      khiến trình duyệt huỷ luôn request thật. Bản này chuyển sang kỹ thuật <strong>JSONP</strong> (tải dữ liệu qua thẻ
-      <code>&lt;script&gt;</code>) — cơ chế nền tảng của web có từ trước CORS, không bị giới hạn CORS chi phối.
-    </div>
     <div class="apikey-row">
       <div class="grow">
         <label for="gasUrl">URL Web App (Google Apps Script) — dạng .../macros/s/XXXX/exec</label>
@@ -259,15 +251,20 @@
       </div>
       <button class="ghost" id="saveGasBtn">Lưu URL</button>
     </div>
-    <p class="hint">
-      Xem hướng dẫn cài đặt đầy đủ ở đầu file <code>Code.gs</code>: tạo project Apps Script → dán code →
-      lưu khóa Gemini vào Script Properties (không lưu trong HTML) → Deploy dạng Web App → dán URL vào đây.
-      Model dùng ở backend là <strong>gemini-2.5-flash</strong> — model duy nhất trong dòng miễn phí hiện có
-      Google Search grounding miễn phí (500 request/ngày), theo trang giá chính thức của Google
-      (<a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener">ai.google.dev/gemini-api/docs/pricing</a>,
-      cập nhật 2026‑06‑30). Các model mới hơn (3.5 Flash, 3.1 Flash‑Lite, 3 Flash Preview) miễn phí sinh văn bản nhưng
-      <em>không</em> có tìm kiếm Google miễn phí ở gói Free.
-    </p>
+    <details class="hint" style="margin-top:8px;">
+      <summary style="cursor:pointer;">Chi tiết kỹ thuật &amp; hướng dẫn cài đặt (bấm để xem)</summary>
+      <p style="margin-top:8px;">
+        Xem hướng dẫn cài đặt đầy đủ ở đầu file <code>Code.gs</code>: tạo project Apps Script → dán code →
+        lưu khóa Gemini vào Script Properties (không lưu trong HTML) → Deploy dạng Web App → dán URL vào đây.
+        Model dùng ở backend là <strong>gemini-2.5-flash</strong> (và các model dự phòng cùng dòng) — theo trang giá
+        chính thức của Google (<a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener">ai.google.dev/gemini-api/docs/pricing</a>,
+        cập nhật 2026‑06‑30), đây là các model duy nhất trong dòng miễn phí hiện có Google Search grounding miễn phí (500 request/ngày dùng chung).
+      </p>
+      <p>
+        Trang này gọi Apps Script bằng kỹ thuật JSONP (thẻ <code>&lt;script&gt;</code>) thay vì <code>fetch()</code>,
+        để tránh lỗi CORS thường gặp khi gọi Apps Script Web App bằng POST từ trình duyệt.
+      </p>
+    </details>
   </section>
 
   <section class="card">
@@ -298,6 +295,7 @@
     <div class="status" id="inputHint">Điền càng nhiều thông tin càng giúp tra cứu chính xác hơn. Có thể để trống mã số nếu chưa có.</div>
     <div class="actions">
       <button class="primary" id="runBtn">Tìm kiếm &amp; trích lọc thông tin</button>
+      <button class="ghost" id="resetBtn">Bắt đầu tài liệu mới</button>
     </div>
     <div class="status" id="status1"></div>
   </section>
@@ -392,6 +390,33 @@ async function runPipeline({ idType, idValue, title, author }) {
 }
 
 let currentFields = null;
+
+$("resetBtn").addEventListener("click", () => {
+  // Xóa trắng form nhập liệu
+  $("idType").value = "isbn";
+  $("idValue").value = "";
+  $("title").value = "";
+  $("author").value = "";
+
+  // Ẩn và xóa sạch kết quả của tài liệu trước
+  $("researchCard").style.display = "none";
+  $("researchText").textContent = "";
+  $("sourceList").innerHTML = "";
+  const oldNote = $("researchCard").querySelector(".hint, .banner");
+  if (oldNote) oldNote.remove();
+
+  $("fieldsCard").style.display = "none";
+  $("fieldGrid").innerHTML = "";
+
+  $("marcCard").style.display = "none";
+  $("marcOutput").textContent = "";
+
+  $("status1").textContent = "";
+  $("status1").className = "status";
+
+  currentFields = null;
+  $("idValue").focus();
+});
 
 $("runBtn").addEventListener("click", async () => {
   const idType = $("idType").value;
