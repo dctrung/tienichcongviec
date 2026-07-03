@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trợ lý Biên mục — VNU-HCM Central Library</title>
+<style>
+  :root{
+    --paper:#f2ede3;
+    --card:#fbf8f2;
+    --ink:#2b2620;
+    --ink-soft:#5c5347;
+    --rule:#c9bfa8;
+    --stamp:#7a3b2e;
+    --stamp-soft:#a8674f;
+    --ok:#3d6b4f;
+    --warn:#9c5d17;
+    --mono: "IBM Plex Mono", "Courier New", monospace;
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --sans: "IBM Plex Sans", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #fffaf0 0%, transparent 60%),
+      var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+
+  header.masthead{
+    border-bottom:3px double var(--ink);
+    padding-bottom:14px;
+    margin-bottom:26px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  header.masthead h1{
+    font-family:var(--serif);
+    font-size:1.7rem;
+    font-weight:600;
+    margin:0;
+    letter-spacing:.2px;
+  }
+  header.masthead .sub{
+    font-size:.8rem;
+    color:var(--ink-soft);
+    font-family:var(--mono);
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+  .card-num{
+    font-family:var(--mono);
+    font-size:.75rem;
+    color:var(--stamp-soft);
+    border:1px solid var(--stamp-soft);
+    padding:3px 8px;
+    border-radius:2px;
+    white-space:nowrap;
+  }
+
+  section.card{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:3px;
+    box-shadow:0 1px 0 var(--rule), 0 8px 18px -14px rgba(0,0,0,.4);
+    padding:22px 24px;
+    margin-bottom:22px;
+    position:relative;
+  }
+  section.card::before{
+    content:"";
+    position:absolute;
+    left:0;right:0;top:0;
+    height:3px;
+    background:repeating-linear-gradient(90deg, var(--stamp) 0 10px, transparent 10px 20px);
+    opacity:.35;
+  }
+  h2.card-title{
+    font-family:var(--serif);
+    font-size:1.05rem;
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h2.card-title .tag{
+    font-family:var(--mono);
+    font-size:.7rem;
+    background:var(--ink);
+    color:var(--paper);
+    padding:2px 7px;
+    border-radius:2px;
+  }
+
+  label{
+    display:block;
+    font-size:.75rem;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+  }
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+  .row.single{grid-template-columns:1fr;}
+  @media (max-width:640px){.row{grid-template-columns:1fr;}}
+
+  input[type=text], input[type=password], select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--rule);
+    border-radius:2px;
+    background:#fff;
+    font-family:var(--sans);
+    font-size:.92rem;
+    color:var(--ink);
+  }
+  input:focus, select:focus{outline:2px solid var(--stamp-soft); outline-offset:1px;}
+
+  .hint{font-size:.75rem;color:var(--ink-soft);margin-top:4px;}
+
+  button.primary{
+    background:var(--stamp);
+    color:#fff;
+    border:none;
+    padding:11px 20px;
+    font-size:.92rem;
+    font-weight:600;
+    border-radius:2px;
+    cursor:pointer;
+    letter-spacing:.3px;
+  }
+  button.primary:hover{background:var(--stamp-soft);}
+  button.primary:disabled{background:#b8ab94;cursor:not-allowed;}
+  button.ghost{
+    background:transparent;
+    border:1px solid var(--rule);
+    color:var(--ink);
+    padding:9px 16px;
+    border-radius:2px;
+    cursor:pointer;
+    font-size:.85rem;
+  }
+  button.ghost:hover{border-color:var(--ink);}
+
+  .status{
+    font-family:var(--mono);
+    font-size:.82rem;
+    color:var(--ink-soft);
+    min-height:1.2em;
+    margin-top:10px;
+  }
+  .status.busy::after{content:"…";animation:dots 1.2s steps(4) infinite;}
+  @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;}
+  @media (max-width:640px){.field-grid{grid-template-columns:1fr;}}
+  .field{margin-bottom:2px;}
+  .field textarea{
+    width:100%;min-height:60px;resize:vertical;
+    padding:8px 9px;border:1px solid var(--rule);border-radius:2px;
+    font-family:var(--sans);font-size:.88rem;background:#fff;
+  }
+
+  .flag{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:.68rem;
+    padding:1px 6px;
+    border-radius:2px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .flag.needs-check{background:#f7e6cf;color:var(--warn);border:1px solid #e0b573;}
+
+  .banner{
+    background:#f7e6cf;
+    border:1px solid #e0b573;
+    color:#5c3d0f;
+    padding:10px 14px;
+    border-radius:3px;
+    font-size:.82rem;
+    margin-bottom:16px;
+  }
+  .banner strong{color:var(--warn);}
+
+  .sources{list-style:none;padding:0;margin:10px 0 0;}
+  .sources li{
+    font-size:.78rem;
+    padding:6px 0;
+    border-top:1px dashed var(--rule);
+    display:flex;
+    gap:8px;
+  }
+  .sources li a{color:var(--stamp);text-decoration:none;word-break:break-all;}
+  .sources li a:hover{text-decoration:underline;}
+  .sources li .n{color:var(--ink-soft);font-family:var(--mono);}
+
+  pre.marc{
+    background:#1e1b16;
+    color:#eee5d2;
+    padding:16px;
+    border-radius:3px;
+    font-family:var(--mono);
+    font-size:.8rem;
+    overflow-x:auto;
+    line-height:1.6;
+    white-space:pre-wrap;
+    word-break:break-word;
+  }
+  pre.marc .fld{color:#e0a672;}
+
+  .actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+
+  footer.note{
+    text-align:center;
+    font-size:.72rem;
+    color:var(--ink-soft);
+    margin-top:30px;
+    font-family:var(--mono);
+  }
+
+  .apikey-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .apikey-row .grow{flex:1;min-width:220px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <h1>Trợ lý Biên mục Tài liệu</h1>
+      <div class="sub">VNU‑HCM Central Library · Cataloging Assistant</div>
+    </div>
+    <div class="card-num">MARC21 / DDC23</div>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title"><span class="tag">API</span> Kết nối tới Apps Script Proxy</h2>
+    <div class="banner">
+      <strong>Vì sao không dùng fetch() thông thường?</strong> Bản trước dùng <code>fetch()</code> POST tới
+      Apps Script Web App và bị lỗi "Failed to fetch". Google <u>không có tài liệu chính thức</u> giải thích
+      hành vi CORS của Web App trong trường hợp này — nhưng nhiều lập trình viên độc lập báo cáo cùng một nguyên nhân:
+      Apps Script không phản hồi đúng cách với request "preflight" (OPTIONS) mà trình duyệt tự động gửi trước request POST,
+      khiến trình duyệt huỷ luôn request thật. Bản này chuyển sang kỹ thuật <strong>JSONP</strong> (tải dữ liệu qua thẻ
+      <code>&lt;script&gt;</code>) — cơ chế nền tảng của web có từ trước CORS, không bị giới hạn CORS chi phối.
+    </div>
+    <div class="apikey-row">
+      <div class="grow">
+        <label for="gasUrl">URL Web App (Google Apps Script) — dạng .../macros/s/XXXX/exec</label>
+        <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+      </div>
+      <button class="ghost" id="saveGasBtn">Lưu URL</button>
+    </div>
+    <p class="hint">
+      Xem hướng dẫn cài đặt đầy đủ ở đầu file <code>Code.gs</code>: tạo project Apps Script → dán code →
+      lưu khóa Gemini vào Script Properties (không lưu trong HTML) → Deploy dạng Web App → dán URL vào đây.
+      Model dùng ở backend là <strong>gemini-2.5-flash</strong> — model duy nhất trong dòng miễn phí hiện có
+      Google Search grounding miễn phí (500 request/ngày), theo trang giá chính thức của Google
+      (<a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener">ai.google.dev/gemini-api/docs/pricing</a>,
+      cập nhật 2026‑06‑30). Các model mới hơn (3.5 Flash, 3.1 Flash‑Lite, 3 Flash Preview) miễn phí sinh văn bản nhưng
+      <em>không</em> có tìm kiếm Google miễn phí ở gói Free.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title"><span class="tag">1</span> Thông tin đầu vào</h2>
+    <div class="row">
+      <div>
+        <label for="idType">Loại tài liệu</label>
+        <select id="idType">
+          <option value="isbn">Sách (ISBN)</option>
+          <option value="issn">Tạp chí / ấn phẩm định kỳ (ISSN)</option>
+        </select>
+      </div>
+      <div>
+        <label for="idValue">Mã số</label>
+        <input type="text" id="idValue" placeholder="VD: 9786048896461">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="title">Nhan đề</label>
+        <input type="text" id="title" placeholder="VD: 7 định luật giảng dạy">
+      </div>
+      <div>
+        <label for="author">Tác giả / Nhà xuất bản</label>
+        <input type="text" id="author" placeholder="VD: John Milton Gregory">
+      </div>
+    </div>
+    <div class="status" id="inputHint">Điền càng nhiều thông tin càng giúp tra cứu chính xác hơn. Có thể để trống mã số nếu chưa có.</div>
+    <div class="actions">
+      <button class="primary" id="runBtn">Tìm kiếm &amp; trích lọc thông tin</button>
+    </div>
+    <div class="status" id="status1"></div>
+  </section>
+
+  <section class="card" id="researchCard" style="display:none;">
+    <h2 class="card-title"><span class="tag">2</span> Kết quả tra cứu (có trích dẫn nguồn)</h2>
+    <div id="researchText" style="white-space:pre-wrap;font-size:.9rem;"></div>
+    <ul class="sources" id="sourceList"></ul>
+  </section>
+
+  <section class="card" id="fieldsCard" style="display:none;">
+    <h2 class="card-title"><span class="tag">3</span> Trường biên mục — kiểm tra &amp; chỉnh sửa trước khi xuất</h2>
+    <div class="banner">
+      <strong>Lưu ý:</strong> Chỉ số DDC do mô hình AI đề xuất dựa trên cấu trúc khung phân loại công khai,
+      <u>chưa được đối chiếu qua WebDewey</u> (công cụ có bản quyền của OCLC). Vui lòng xác minh lại trước khi
+      dùng làm biểu ghi chính thức. Các trường có nhãn <span class="flag needs-check">cần xác minh</span> là những
+      chỗ mô hình không tìm được nguồn chính thức đủ tin cậy — đã để trống thay vì tự suy đoán.
+    </div>
+    <p class="hint" style="margin-bottom:14px;">
+      Các ô bên dưới đã được <strong>điền sẵn tự động</strong> theo đúng kết quả tra cứu ở bước 2.
+      Bạn có thể sửa trực tiếp nếu phát hiện sai sót — <strong>nếu để nguyên, hệ thống sẽ dùng chính xác giá trị
+      đang hiển thị trong ô để tạo file MARC</strong> ở bước tiếp theo, không tự ý thay đổi thêm.
+    </p>
+    <div class="field-grid" id="fieldGrid"></div>
+    <div class="actions">
+      <button class="primary" id="buildMarcBtn">Tạo file MARC21 (.mrk)</button>
+    </div>
+  </section>
+
+  <section class="card" id="marcCard" style="display:none;">
+    <h2 class="card-title"><span class="tag">4</span> Biểu ghi MARC21 (định dạng MarcEdit mnemonic)</h2>
+    <pre class="marc" id="marcOutput"></pre>
+    <div class="actions">
+      <button class="primary" id="downloadBtn">Tải file .mrk</button>
+      <button class="ghost" id="copyBtn">Sao chép</button>
+    </div>
+    <p class="hint">
+      Mở file .mrk bằng <strong>MarcEdit</strong> → Compile into MARC → xuất .mrc → import vào Sierra qua Data Exchange.
+    </p>
+  </section>
+
+  <footer class="note">Gemini 2.5 Flash · Google Search Grounding · Free tier 500 RPD — ai.google.dev/gemini-api/docs/pricing (2026‑06‑30)</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ---------- Apps Script Web App URL persistence ----------
+(function initGasUrl(){
+  const saved = localStorage.getItem("gas_web_app_url");
+  if (saved) $("gasUrl").value = saved;
+})();
+$("saveGasBtn").addEventListener("click", () => {
+  localStorage.setItem("gas_web_app_url", $("gasUrl").value.trim());
+  $("saveGasBtn").textContent = "Đã lưu ✓";
+  setTimeout(() => $("saveGasBtn").textContent = "Lưu URL", 1500);
+});
+
+// ---------- Gọi Apps Script bằng JSONP (thẻ <script>) ----------
+// JSONP không đi qua fetch()/XHR nên không bị CORS chặn — đây là kỹ thuật nền
+// tảng web có từ trước CORS, không phải tài liệu chính thức của Google.
+function jsonpCall(baseUrl, params) {
+  return new Promise((resolve, reject) => {
+    const cbName = "jsonp_cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Hết thời gian chờ (150s). Quy trình giờ gồm: tra LOC SRU + tối đa 3 model thử lần lượt x 2 bước (tìm kiếm + trích xuất), nên có thể mất 30-90s trong điều kiện bình thường. Nếu vẫn hết giờ, kiểm tra lại URL Web App và trạng thái Deploy."));
+    }, 150000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+
+    const qs = new URLSearchParams({ ...params, callback: cbName }).toString();
+    const script = document.createElement("script");
+    script.src = baseUrl + (baseUrl.includes("?") ? "&" : "?") + qs;
+    script.onerror = () => { cleanup(); reject(new Error("Không tải được từ Apps Script — kiểm tra lại URL Web App (phải kết thúc bằng /exec) và Deploy đã ở chế độ 'Anyone'.")); };
+    document.body.appendChild(script);
+  });
+}
+
+async function runPipeline({ idType, idValue, title, author }) {
+  const url = localStorage.getItem("gas_web_app_url") || $("gasUrl").value.trim();
+  if (!url) throw new Error("Chưa nhập URL Apps Script Web App. Xem hướng dẫn cài đặt trong Code.gs.");
+  const data = await jsonpCall(url, { idType, idValue, title, author });
+  if (data.error) throw new Error(data.error);
+  return data; // { researchText, citations, fields }
+}
+
+let currentFields = null;
+
+$("runBtn").addEventListener("click", async () => {
+  const idType = $("idType").value;
+  const idValue = $("idValue").value.trim();
+  const title = $("title").value.trim();
+  const author = $("author").value.trim();
+
+  if (!idValue && !title) {
+    $("status1").textContent = "Vui lòng nhập ít nhất mã số hoặc nhan đề.";
+    return;
+  }
+
+  const runBtn = $("runBtn");
+  runBtn.disabled = true;
+  const status = $("status1");
+  status.className = "status busy";
+  status.textContent = "Đang tra LOC SRU, tìm kiếm & trích lọc (có thể mất 30-90 giây do chạy nhiều bước tuần tự phía server)";
+
+  try {
+    const data = await runPipeline({ idType, idValue, title, author });
+    const { researchText, citations, fields, extraction_error, modelsUsed } = data;
+
+    $("researchCard").style.display = "block";
+    $("researchText").textContent = researchText || "(không nhận được nội dung)";
+    const srcList = $("sourceList");
+    srcList.innerHTML = "";
+    (citations || []).forEach((c, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="n">[${i+1}]</span> <a href="${c.url}" target="_blank" rel="noopener">${c.title || c.url}</a>`;
+      srcList.appendChild(li);
+    });
+    if (modelsUsed) {
+      const modelNote = document.createElement("div");
+      modelNote.className = "hint";
+      modelNote.style.marginTop = "10px";
+      const same = modelsUsed.research === modelsUsed.extract;
+      modelNote.textContent = same
+        ? `Model đã dùng: ${modelsUsed.research}`
+        : `Model đã dùng — tra cứu: ${modelsUsed.research} · trích xuất: ${modelsUsed.extract} (đã tự động chuyển model do model trước bị quá tải)`;
+      $("researchCard").appendChild(modelNote);
+    }
+
+    currentFields = fields || {};
+    renderFieldForm(currentFields);
+
+    status.className = "status";
+    if (extraction_error) {
+      status.textContent = "⚠ Bước trích xuất JSON gặp lỗi — form bên dưới đang trống. Xem chi tiết lỗi bên dưới kết quả tra cứu, rồi có thể tự điền tay từ nội dung tra cứu ở bước 2.";
+      const errBox = document.createElement("div");
+      errBox.className = "banner";
+      errBox.style.marginTop = "10px";
+      errBox.innerHTML = "<strong>Lỗi trích xuất JSON:</strong> " + extraction_error.replace(/</g,"&lt;");
+      $("researchCard").appendChild(errBox);
+    } else {
+      status.textContent = "Hoàn tất. Vui lòng kiểm tra lại các trường bên dưới trước khi xuất MARC.";
+    }
+  } catch (err) {
+    status.className = "status";
+    status.textContent = "Lỗi: " + err.message;
+  } finally {
+    runBtn.disabled = false;
+  }
+});
+
+function renderFieldForm(f) {
+  const grid = $("fieldGrid");
+  grid.innerHTML = "";
+  const defs = [
+    ["id_value", f.id_type === "issn" ? "ISSN" : "ISBN"],
+    ["title_main", "Nhan đề chính"],
+    ["title_sub", "Phụ đề"],
+    ["original_title", "Nhan đề nguyên tác"],
+    ["original_year", "Năm xuất bản đầu tiên (nguyên tác)"],
+    ["author", "Tác giả"],
+    ["author_dates", "Năm sinh–mất tác giả"],
+    ["translators", "Dịch giả"],
+    ["publisher", "Nhà xuất bản"],
+    ["pub_place", "Nơi xuất bản"],
+    ["pub_year", "Năm xuất bản (ấn bản này)"],
+    ["pages", "Số trang"],
+    ["dimensions", "Kích thước"],
+    ["language", "Mã ngôn ngữ (vie/eng/...)"],
+    ["ddc", "Chỉ số DDC23 (đề xuất)"],
+  ];
+  defs.forEach(([key, label]) => {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const isEmpty = !f[key];
+    wrap.innerHTML = `<label>${label}${key === "ddc" || isEmpty ? '<span class="flag needs-check">cần xác minh</span>' : ""}</label>
+      <input type="text" data-key="${key}" value="${(f[key]||"").replace(/"/g,'&quot;')}">`;
+    grid.appendChild(wrap);
+  });
+  const sumWrap = document.createElement("div");
+  sumWrap.className = "field";
+  sumWrap.style.gridColumn = "1 / -1";
+  sumWrap.innerHTML = `<label>Tóm tắt</label><textarea data-key="summary">${f.summary||""}</textarea>`;
+  grid.appendChild(sumWrap);
+
+  const subWrap = document.createElement("div");
+  subWrap.className = "field";
+  subWrap.style.gridColumn = "1 / -1";
+  subWrap.innerHTML = `<label>Chủ đề (mỗi dòng một chủ đề)</label><textarea data-key="subjects">${(f.subjects||[]).join("\n")}</textarea>`;
+  grid.appendChild(subWrap);
+
+  $("fieldsCard").style.display = "block";
+}
+
+function readFieldForm() {
+  const inputs = $("fieldGrid").querySelectorAll("input[data-key], textarea[data-key]");
+  const out = { ...currentFields };
+  inputs.forEach(el => {
+    if (el.dataset.key === "subjects") {
+      out.subjects = el.value.split("\n").map(s => s.trim()).filter(Boolean);
+    } else {
+      out[el.dataset.key] = el.value.trim();
+    }
+  });
+  return out;
+}
+
+// ---------- Step 3: build MARC21 mnemonic text (client-side, no API call) ----------
+function pad(n, len) { return String(n).padStart(len, "0"); }
+
+function build008Book(f) {
+  const now = new Date();
+  const entered = pad(now.getFullYear()%100,2) + pad(now.getMonth()+1,2) + pad(now.getDate(),2);
+  const year = (f.pub_year || "").replace(/\D/g,"").slice(0,4) || "||||";
+  const lang = (f.language || "vie").padEnd(3," ").slice(0,3);
+  // simplified BK-format 008: entered / s / date1 / 4 blank / place(3, unknown="xxu" fallback) / 18 blanks-ish / lit form 0 / lang / blank / cat source d
+  const place = "vm "; // Vietnam; user should adjust if publisher is elsewhere
+  return `${entered}s${year}    ${place}          000 0 ${lang} d`;
+}
+
+function escMarc(s){ return (s||"").replace(/\$/g,"{dollar}"); }
+
+function buildMrk(f) {
+  const isIssn = f.id_type === "issn";
+  const idTag = isIssn ? "022" : "020";
+  const title = [f.title_main, f.title_sub].filter(Boolean).join(" : ");
+  const lines = [];
+  lines.push("=LDR  00000cam a2200000 a 4500");
+  lines.push("=001  \\\\vnulib_auto_" + Date.now());
+  lines.push("=003  \\\\VNU-HCM");
+  lines.push("=005  \\\\" + new Date().toISOString().replace(/[-:T]/g,"").slice(0,14) + ".0");
+  lines.push("=008  \\\\" + build008Book(f));
+  if (f.id_value) lines.push(`=${idTag}  \\\\$a${escMarc(f.id_value)}`);
+  lines.push("=040  \\\\$aVNU-HCM$bvie$cVNU-HCM$erda");
+  if (f.language && f.language !== "vie") {
+    lines.push(`=041  1\\$avie$h${escMarc(f.language)}`);
+  }
+  lines.push(`=082  04$a${escMarc(f.ddc || "[cần xác minh]")}$223`);
+  if (f.author) {
+    lines.push(`=100  1\\$a${escMarc(f.author)}${f.author_dates ? ",$d" + escMarc(f.author_dates) : ""}.`);
+  }
+  if (f.original_title) {
+    lines.push(`=240  10$a${escMarc(f.original_title)}.${f.original_year ? " " + escMarc(f.original_year) + "." : ""}`);
+  }
+  let t245 = `=245  10$a${escMarc(title || "[chưa xác minh nhan đề]")} :`;
+  let respTail = [f.author, f.translators ? f.translators + " dịch" : null].filter(Boolean).join(" ; ");
+  lines.push(`=245  10$a${escMarc(title || "[chưa xác minh nhan đề]")}${respTail ? " /$c" + escMarc(respTail) + "." : "."}`);
+  lines.push(`=264  \\1$a${escMarc(f.pub_place || "[cần xác minh nơi xuất bản]")} :$b${escMarc(f.publisher || "[cần xác minh nhà xuất bản]")},$c${escMarc(f.pub_year || "[cần xác minh năm]")}.`);
+  lines.push(`=300  \\\\$a${escMarc(f.pages || "[cần xác minh số trang]")} trang ;$c${escMarc(f.dimensions || "[cần xác minh kích thước]")}.`);
+  lines.push("=336  \\\\$atext$btxt$2rdacontent");
+  lines.push("=337  \\\\$aunmediated$bn$2rdamedia");
+  lines.push("=338  \\\\$avolume$bnc$2rdacarrier");
+  if (f.original_title) {
+    lines.push(`=500  \\\\$aDịch từ nguyên bản: ${escMarc(f.original_title)}${f.original_year ? ", " + escMarc(f.original_year) : ""}.`);
+  }
+  if (f.summary) lines.push(`=520  \\\\$a${escMarc(f.summary)}`);
+  (f.subjects || []).forEach(s => {
+    lines.push(`=650  \\7$a${escMarc(s)}$2local`);
+  });
+  if (f.translators) {
+    f.translators.split(/[,;]/).map(s=>s.trim()).filter(Boolean).forEach(t => {
+      lines.push(`=700  1\\$a${escMarc(t)},$etranslator.`);
+    });
+  }
+  lines.push("");
+  lines.push("REM  --- Ghi chú tự động: chỉ số DDC và mọi trường có nhãn [cần xác minh] PHẢI được kiểm tra lại");
+  lines.push("REM  thủ công (WebDewey, trang bìa sách, hoặc biểu ghi thư viện quốc gia) trước khi nhập chính thức vào Sierra.");
+  return lines.join("\n");
+}
+
+$("buildMarcBtn").addEventListener("click", () => {
+  const f = readFieldForm();
+  const mrk = buildMrk(f);
+  $("marcOutput").textContent = mrk;
+  $("marcCard").style.display = "block";
+  $("marcCard").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("downloadBtn").addEventListener("click", () => {
+  const content = $("marcOutput").textContent;
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safeTitle = (currentFields?.title_main || "bien-muc").replace(/[^\w\-]+/g,"-").slice(0,40);
+  a.href = url;
+  a.download = `${safeTitle}.mrk`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+$("copyBtn").addEventListener("click", async () => {
+  const content = $("marcOutput").textContent;
+  try {
+    await navigator.clipboard.writeText(content);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = content; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+  }
+  $("copyBtn").textContent = "Đã sao chép ✓";
+  setTimeout(() => $("copyBtn").textContent = "Sao chép", 1500);
+});
+</script>
+</body>
+</html>
