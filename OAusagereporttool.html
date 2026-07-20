@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Chống Cache trình duyệt & GitHub Pages CDN -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Usage Report Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -76,6 +80,31 @@
   .res-check:hover { background: var(--surface2); border-color: var(--border2); }
   .res-check.off { opacity: .4; text-decoration: line-through; }
   .res-check input { cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+
+  /* Advanced filters */
+  .adv-toggle { font-size: .8rem; color: var(--text2); cursor: pointer; padding: .5rem 0; margin-top: .5rem; border-top: 1px solid var(--border); font-family: 'Courier New', monospace; user-select: none; }
+  .adv-toggle:hover { color: var(--accent); }
+  .adv-toggle.on #advArrow { display: inline-block; transform: rotate(90deg); }
+  .adv-panel { padding-top: .75rem; }
+  .adv-panel .field code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: .78rem; }
+  .hint-text { font-size: .72rem; color: var(--text3); font-family: 'Courier New', monospace; }
+  .hint-text.err { color: var(--danger); }
+  .hint-text code { background: var(--surface2); padding: 0 4px; border-radius: 3px; }
+  .wc-mode-row { display: flex; gap: 1.2rem; margin: .5rem 0; }
+  .radio-opt { display: flex; align-items: center; gap: .4rem; font-size: .82rem; cursor: pointer; user-select: none; }
+  .radio-opt input { cursor: pointer; accent-color: var(--accent); }
+  input[type=text] { padding: .45rem .6rem; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: 'Courier New', monospace; font-size: .85rem; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .preset-row { display: flex; gap: .5rem; margin-top: .75rem; align-items: center; }
+  .preset-list { display: flex; flex-direction: column; gap: .4rem; margin-top: .6rem; }
+  .preset-chip { display: flex; align-items: center; gap: .5rem; padding: .45rem .7rem; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); font-size: .8rem; }
+  .preset-chip .pname { flex: 1; font-weight: bold; }
+  .preset-chip .pdesc { color: var(--text3); font-size: .72rem; font-family: 'Courier New', monospace; }
+  .preset-chip .pcount { color: var(--accent); font-size: .75rem; font-family: 'Courier New', monospace; white-space: nowrap; }
+  .preset-chip button { font-size: .72rem; padding: .25rem .6rem; border: 1px solid var(--border2); border-radius: 5px; cursor: pointer; background: var(--surface); color: var(--text2); font-family: 'Courier New', monospace; white-space: nowrap; }
+  .preset-chip button:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-chip button.del:hover { border-color: var(--danger); color: var(--danger); }
 
   /* Report tabs */
   .tab-bar { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: 1rem; }
@@ -184,6 +213,56 @@
       </div>
     </div>
     <div class="res-grid" id="resGrid"></div>
+
+    <!-- Advanced filters -->
+    <div class="adv-toggle" onclick="toggleAdv()">
+      <span id="advArrow">▸</span> Lọc nâng cao — độ dài & kiểu Username
+    </div>
+    <div id="advPanel" class="adv-panel hidden">
+      <div class="control-grid">
+        <div class="field">
+          <label>Độ dài Username — tối thiểu</label>
+          <input type="number" id="ulenMin" min="0" placeholder="vd: 1">
+        </div>
+        <div class="field">
+          <label>Độ dài Username — tối đa</label>
+          <input type="number" id="ulenMax" min="0" placeholder="vd: 20">
+        </div>
+        <div class="field">
+          <label>Kiểu ký tự Username</label>
+          <select id="charType">
+            <option value="any">Bất kỳ</option>
+            <option value="digits">Chỉ số (0-9)</option>
+            <option value="letters">Chỉ chữ cái</option>
+            <option value="alnum">Chữ và số</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Áp dụng mẫu chứa cho</label>
+          <select id="wcField">
+            <option value="username">Username</option>
+            <option value="resource">Resource</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:.75rem">
+        <label>Mẫu chứa văn bản — dùng <code>*</code> thay cho nhiều ký tự, <code>?</code> thay cho 1 ký tự</label>
+        <input type="text" id="wcPattern" placeholder="vd: *Healey*  (giữ dòng có chứa &quot;Healey&quot;)" style="width:100%">
+        <div class="wc-mode-row">
+          <label class="radio-opt"><input type="radio" name="wcMode" value="match" checked> Giữ lại dòng khớp mẫu</label>
+          <label class="radio-opt"><input type="radio" name="wcMode" value="exclude"> Loại bỏ dòng khớp mẫu</label>
+        </div>
+        <span class="hint-text">Ví dụ: <code>EIU*</code> = bắt đầu bằng "EIU" · <code>*database*</code> = có chứa "database" · <code>???</code> = đúng 3 ký tự</span>
+      </div>
+      <div class="notice info" id="advSummary" style="display:none"></div>
+
+      <!-- Named filter presets -->
+      <div class="preset-row">
+        <input type="text" id="presetName" placeholder="Đặt tên mẫu lọc (vd: User số, Loại NXB)" style="flex:1">
+        <button class="btn btn-outline" onclick="savePreset()">＋ Lưu mẫu lọc hiện tại</button>
+      </div>
+      <div class="preset-list" id="presetList"></div>
+    </div>
   </div>
 
   <!-- Step 3: Report -->
@@ -212,6 +291,7 @@ let sortCol = null;
 let sortAsc = false;
 let curPage = 0;
 const PAGE = 50;
+let presets = [];
 
 const $ = id => document.getElementById(id);
 
@@ -224,9 +304,33 @@ const TABS = [
   { id: 'top_users',          label: 'Top 20 User' },
 ];
 
-// ── File handling ─────────────────────────────────────────────────────────────
+// ── CẢI TIẾN 1: Chuẩn hóa Ngày tháng về YYYY-MM-DD ISO Standard ──────────────
+function parseDateToISO(dStr) {
+  if (!dStr) return '';
+  dStr = String(dStr).trim();
+  // Khớp YYYY-MM-DD hoặc YYYY/MM/DD
+  let m = dStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m) {
+    return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  }
+  // Khớp DD/MM/YYYY hoặc DD-MM-YYYY
+  m = dStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  // Fallback JS Date Object
+  const dt = new Date(dStr);
+  if (!isNaN(dt.getTime())) {
+    const y = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${mm}-${dd}`;
+  }
+  return dStr.slice(0, 10);
+}
 
-// RFC 4180-compliant CSV/TSV parser — handles quoted fields containing delimiter or newlines
+// ── CSV Parsing & Header Detection ───────────────────────────────────────────
+
 function splitRecord(line, sep) {
   const fields = [];
   let cur = '', inQ = false, i = 0;
@@ -234,8 +338,8 @@ function splitRecord(line, sep) {
     const ch = line[i];
     if (inQ) {
       if (ch === '"') {
-        if (line[i+1] === '"') { cur += '"'; i += 2; }   // escaped quote ""
-        else { inQ = false; i++; }                         // closing quote
+        if (line[i+1] === '"') { cur += '"'; i += 2; }
+        else { inQ = false; i++; }
       } else { cur += ch; i++; }
     } else {
       if (ch === '"') { inQ = true; i++; }
@@ -248,18 +352,38 @@ function splitRecord(line, sep) {
 }
 
 function detectSep(t) {
-  // Use header line to detect separator — count unquoted occurrences
   const line = t.split('\n')[0];
   const tabs = splitRecord(line, '\t').length;
   const commas = splitRecord(line, ',').length;
   return tabs > commas ? '\t' : ',';
 }
 
+// CẢI TIẾN 2: Nhận diện cột chính xác & bóc tách UTF-8 BOM
+function findColIndex(rawHeads, candidates) {
+  const heads = rawHeads.map(h => h.toLowerCase().trim().replace(/^"|"$/g, ''));
+  // 1. Khớp chính xác 100%
+  for (const cand of candidates) {
+    const idx = heads.findIndex(h => h === cand);
+    if (idx > -1) return idx;
+  }
+  // 2. Khớp theo tiền tố/hậu tố
+  for (const cand of candidates) {
+    const idx = heads.findIndex(h => h.startsWith(cand) || h.endsWith(cand));
+    if (idx > -1) return idx;
+  }
+  // 3. Khớp chứa từ
+  for (const cand of candidates) {
+    const idx = heads.findIndex(h => h.includes(cand));
+    if (idx > -1) return idx;
+  }
+  return -1;
+}
+
 function parseCSV(text) {
+  // Loại bỏ ký tự UTF-8 BOM (\uFEFF) ở đầu file
+  text = text.replace(/^\uFEFF/, '');
   const sep = detectSep(text);
-  // Normalise line endings, then split — but quoted newlines may span lines, so re-join them
   const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  // Reassemble records that span multiple lines due to quoted newlines
   const records = [];
   let buf = '', inQ = false;
   for (let i = 0; i < raw.length; i++) {
@@ -271,13 +395,25 @@ function parseCSV(text) {
   if (buf.trim()) records.push(buf);
 
   if (records.length < 2) return null;
-  const heads = splitRecord(records[0], sep).map(h => h.toLowerCase());
-  const col = (...ns) => { for (const n of ns) { const i = heads.findIndex(h => h === n || h.includes(n)); if (i > -1) return i; } return -1; };
-  const iD = col('date'), iR = col('resource'), iU = col('username','user'), iC = col('count');
+  const rawHeads = splitRecord(records[0], sep);
+
+  const iD = findColIndex(rawHeads, ['date', 'ngày', 'time', 'timestamp', 'created_at']);
+  const iR = findColIndex(rawHeads, ['resource', 'tài nguyên', 'nxb', 'publisher', 'database', 'service']);
+  const iU = findColIndex(rawHeads, ['username', 'user', 'người dùng', 'account', 'tài khoản']);
+  const iC = findColIndex(rawHeads, ['count', 'lượt', 'số lượt', 'total', 'usage', 'quantity']);
+
   if ([iD,iR,iU,iC].includes(-1)) return null;
+
   return records.slice(1).map(rec => {
     const p = splitRecord(rec, sep);
-    return { date: p[iD]||'', resource: p[iR]||'', username: p[iU]||'', count: parseInt(p[iC])||0 };
+    const rawDate = (p[iD]||'').trim();
+    const isoDate = parseDateToISO(rawDate);
+    return {
+      date: isoDate,
+      resource: (p[iR]||'').trim(),
+      username: (p[iU]||'').trim(),
+      count: parseInt(p[iC], 10)||0
+    };
   }).filter(r => r.resource);
 }
 
@@ -285,14 +421,17 @@ async function readText(file) {
   return new Promise(r => { const fr = new FileReader(); fr.onload = e => r(e.target.result); fr.readAsText(file, 'UTF-8'); });
 }
 
+// CẢI TIẾN 3: Sắp xếp danh sách File theo Tên để cố định thứ tự bất chấp OS/Browser
 async function handleFiles(files) {
-  for (const f of Array.from(files)) {
+  const fileArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  for (const f of fileArray) {
     if (loadedFiles.find(x => x.name === f.name)) continue;
     const text = await readText(f);
     const rows = parseCSV(text);
     if (!rows) { alert(`File "${f.name}" không đúng định dạng.\nCần có các cột: Date, Resource, username, Count`); continue; }
     loadedFiles.push({ name: f.name, size: f.size, rows });
   }
+  loadedFiles.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
   renderFileList();
   processData();
 }
@@ -308,23 +447,35 @@ function renderFileList() {
     </div>`).join('');
 }
 
-// ── Process ───────────────────────────────────────────────────────────────────
+// ── Process Data ──────────────────────────────────────────────────────────────
 function processData() {
   if (!loadedFiles.length) {
     ['configCard','reportCard'].forEach(id => $(id).classList.add('hidden'));
     return;
   }
   allRows = loadedFiles.flatMap(f => f.rows);
-  resources = [...new Set(allRows.map(r => r.resource))].filter(Boolean).sort();
+  
+  // CẢI TIẾN 4: Chuẩn hóa sắp xếp toàn bộ dữ liệu hợp nhất theo Date -> Resource -> Username
+  allRows.sort((a, b) => 
+    a.date.localeCompare(b.date) || 
+    a.resource.localeCompare(b.resource, 'vi') || 
+    a.username.localeCompare(b.username, 'vi')
+  );
+
+  resources = [...new Set(allRows.map(r => r.resource))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'vi'));
   excluded = new Set();
   buildConfig();
   $('configCard').classList.remove('hidden');
   refresh();
+  renderPresets();
 }
 
 function buildConfig() {
   const dates = allRows.map(r => r.date).filter(Boolean).sort();
-  if (dates.length) { $('dateFrom').value = dates[0].slice(0,10); $('dateTo').value = dates[dates.length-1].slice(0,10); }
+  if (dates.length) {
+    $('dateFrom').value = dates[0];
+    $('dateTo').value = dates[dates.length - 1];
+  }
   $('resGrid').innerHTML = resources.map(r => `
     <label class="res-check" id="rc_${esc(r)}">
       <input type="checkbox" checked onchange="toggleRes('${r.replace(/'/g,"\\'")}')"> ${r}
@@ -357,17 +508,141 @@ function updateResCount() {
   $('resCount').textContent = `${sel}/${resources.length} resource được chọn`;
 }
 
-// ── Filter ────────────────────────────────────────────────────────────────────
-function getFiltered() {
-  const minC = parseInt($('minCount').value) || 0;
-  const from = $('dateFrom').value || '';
-  const to   = $('dateTo').value   || '';
-  return allRows.filter(r =>
-    !excluded.has(r.resource) &&
-    r.count >= minC &&
-    (!from || r.date >= from) &&
-    (!to   || r.date <= to)
+// ── Filter Data ───────────────────────────────────────────────────────────────
+function getAdvFilters() {
+  return {
+    minCount: parseInt($('minCount').value, 10) || 0,
+    dateFrom: $('dateFrom').value || '',
+    dateTo:   $('dateTo').value   || '',
+    ulenMin:  $('ulenMin').value === '' ? null : parseInt($('ulenMin').value, 10),
+    ulenMax:  $('ulenMax').value === '' ? null : parseInt($('ulenMax').value, 10),
+    charType: $('charType').value,
+    wcField:   $('wcField').value,
+    wcMode:    document.querySelector('input[name=wcMode]:checked').value,
+    wcPattern: $('wcPattern').value.trim()
+  };
+}
+
+function wildcardToRegex(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const withWildcards = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+  return new RegExp('^' + withWildcards + '$', 'i');
+}
+
+const CHAR_TYPE_TEST = {
+  digits:  s => /^[0-9]+$/.test(s),
+  letters: s => /^[A-Za-zÀ-ỹ]+$/.test(s),
+  alnum:   s => /^[A-Za-z0-9À-ỹ]+$/.test(s),
+  any:     () => true
+};
+
+function applyAdvFilters(rows, f) {
+  let out = rows;
+  if (f.ulenMin != null) out = out.filter(r => r.username.length >= f.ulenMin);
+  if (f.ulenMax != null) out = out.filter(r => r.username.length <= f.ulenMax);
+  if (f.charType && f.charType !== 'any') out = out.filter(r => CHAR_TYPE_TEST[f.charType](r.username));
+  if (f.wcPattern) {
+    const pattern = /[*?]/.test(f.wcPattern) ? f.wcPattern : `*${f.wcPattern}*`;
+    const re = wildcardToRegex(pattern);
+    out = out.filter(r => {
+      const val = f.wcField === 'resource' ? r.resource : r.username;
+      const hit = re.test(val);
+      return f.wcMode === 'exclude' ? !hit : hit;
+    });
+  }
+  return out;
+}
+
+function getFiltered(excludedSet, advOverride) {
+  const exc = excludedSet || excluded;
+  const f = advOverride || getAdvFilters();
+  let out = allRows.filter(r =>
+    !exc.has(r.resource) &&
+    r.count >= f.minCount &&
+    (!f.dateFrom || r.date >= f.dateFrom) &&
+    (!f.dateTo   || r.date <= f.dateTo)
   );
+  out = applyAdvFilters(out, f);
+  return out;
+}
+
+function toggleAdv() {
+  $('advPanel').classList.toggle('hidden');
+  $('advArrow').parentElement.classList.toggle('on');
+}
+
+// ── Presets ───────────────────────────────────────────────────────────────────
+function savePreset() {
+  const name = $('presetName').value.trim();
+  if (!name) { alert('Vui lòng đặt tên cho mẫu lọc.'); return; }
+  const f = getAdvFilters();
+  const preset = { name, ...f, excluded: [...excluded] };
+  const existingIdx = presets.findIndex(p => p.name === name);
+  if (existingIdx > -1) presets[existingIdx] = preset; else presets.push(preset);
+  $('presetName').value = '';
+  renderPresets();
+}
+
+function deletePreset(i) { presets.splice(i, 1); renderPresets(); }
+
+function applyPreset(i) {
+  const p = presets[i];
+  $('minCount').value = p.minCount;
+  $('dateFrom').value = p.dateFrom;
+  $('dateTo').value = p.dateTo;
+  $('ulenMin').value = p.ulenMin ?? '';
+  $('ulenMax').value = p.ulenMax ?? '';
+  $('charType').value = p.charType || 'any';
+  $('wcField').value = p.wcField || 'username';
+  document.querySelector(`input[name=wcMode][value="${p.wcMode||'match'}"]`).checked = true;
+  $('wcPattern').value = p.wcPattern || '';
+  excluded = new Set(p.excluded);
+  resources.forEach(r => {
+    const el = document.getElementById('rc_' + esc(r));
+    if (el) { el.classList.toggle('off', excluded.has(r)); el.querySelector('input').checked = !excluded.has(r); }
+  });
+  updateResCount();
+  curPage = 0;
+  refresh();
+}
+
+function presetRowCount(p) {
+  return getFiltered(new Set(p.excluded), p).length;
+}
+
+const CHAR_TYPE_LABEL = { digits: 'chỉ số', letters: 'chỉ chữ', alnum: 'chữ+số', any: '' };
+
+function renderPresets() {
+  const el = $('presetList');
+  if (!presets.length) { el.innerHTML = ''; return; }
+  el.innerHTML = presets.map((p, i) => {
+    const n = allRows.length ? presetRowCount(p) : 0;
+    const descBits = [];
+    if (p.minCount) descBits.push(`Count≥${p.minCount}`);
+    if (p.ulenMin != null || p.ulenMax != null) descBits.push(`độ dài ${p.ulenMin ?? 0}-${p.ulenMax ?? '∞'}`);
+    if (p.charType && p.charType !== 'any') descBits.push(CHAR_TYPE_LABEL[p.charType]);
+    if (p.wcPattern) descBits.push(`${p.wcMode==='exclude'?'loại':'chứa'} "${p.wcPattern}" trên ${p.wcField==='resource'?'Resource':'Username'}`);
+    return `
+    <div class="preset-chip">
+      <span class="pname">${p.name}</span>
+      <span class="pdesc">${descBits.join(' · ') || 'không có điều kiện nâng cao'}</span>
+      <span class="pcount">${n.toLocaleString('vi')} dòng</span>
+      <button onclick="applyPreset(${i})">Áp dụng</button>
+      <button onclick="exportPreset(${i},'xlsx')">⬇ Excel</button>
+      <button onclick="exportPreset(${i},'csv')">⬇ CSV</button>
+      <button class="del" onclick="deletePreset(${i})">Xóa</button>
+    </div>`;
+  }).join('');
+}
+
+function exportPreset(i, fmt) {
+  const p = presets[i];
+  const rows = getFiltered(new Set(p.excluded), p);
+  if (!rows.length) { alert('Mẫu lọc "' + p.name + '" không có dòng dữ liệu nào phù hợp.'); return; }
+  const heads = ['Date','Resource','Username','Count'];
+  const data = rows.map(r => ({ Date: r.date, Resource: r.resource, Username: r.username, Count: r.count }));
+  const fname = 'mau_loc_' + p.name.replace(/[^a-zA-Z0-9À-ỹ]+/g,'_');
+  exportTable(heads, data, fname, fmt);
 }
 
 function periodKey(d, p) {
@@ -377,7 +652,7 @@ function periodKey(d, p) {
   return d.slice(0,4);
 }
 
-// ── Aggregate ─────────────────────────────────────────────────────────────────
+// ── Aggregate Data ────────────────────────────────────────────────────────────
 function grp(rows, keyFn) {
   const m = new Map();
   rows.forEach(r => {
@@ -389,88 +664,95 @@ function grp(rows, keyFn) {
   return m;
 }
 
+// CẢI TIẾN 5: Bổ sung Tie-Breaker cho tất cả các mẫu báo cáo (Sort cố định tuyệt đối)
 function buildData(rows, tabId) {
   const p = $('period').value;
+
   if (tabId === 'by_resource') {
-    return { heads: ['Resource','Lượt sử dụng','Số user','TB/user'],
-      nums: new Set(['Lượt sử dụng','Số user','TB/user']),
-      data: [...grp(rows, r => r.resource)].map(([k,v]) => ({
-        'Resource': k, 'Lượt sử dụng': v.count, 'Số user': v.users.size,
-        'TB/user': v.users.size ? +(v.count/v.users.size).toFixed(1) : 0
-      }))
-    };
+    const data = [...grp(rows, r => r.resource)].map(([k,v]) => ({
+      'Resource': k, 'Lượt sử dụng': v.count, 'Số user': v.users.size,
+      'TB/user': v.users.size ? +(v.count/v.users.size).toFixed(1) : 0
+    }));
+    data.sort((a,b) => (b['Lượt sử dụng'] - a['Lượt sử dụng']) || a['Resource'].localeCompare(b['Resource'], 'vi'));
+    return { heads: ['Resource','Lượt sử dụng','Số user','TB/user'], nums: new Set(['Lượt sử dụng','Số user','TB/user']), data };
   }
+
   if (tabId === 'by_user') {
     const dayMap = new Map(), resMap = new Map();
     rows.forEach(r => {
       const ds = dayMap.get(r.username) || new Set(); ds.add(r.date); dayMap.set(r.username, ds);
       const rs = resMap.get(r.username) || new Set(); rs.add(r.resource); resMap.set(r.username, rs);
     });
-    return { heads: ['Username','Lượt sử dụng','Số resource','Số ngày HĐ'],
-      nums: new Set(['Lượt sử dụng','Số resource','Số ngày HĐ']),
-      data: [...grp(rows, r => r.username)].map(([k,v]) => ({
-        'Username': k, 'Lượt sử dụng': v.count,
-        'Số resource': resMap.get(k)?.size||0, 'Số ngày HĐ': dayMap.get(k)?.size||0
-      }))
-    };
+    const data = [...grp(rows, r => r.username)].map(([k,v]) => ({
+      'Username': k, 'Lượt sử dụng': v.count,
+      'Số resource': resMap.get(k)?.size||0, 'Số ngày HĐ': dayMap.get(k)?.size||0
+    }));
+    data.sort((a,b) => (b['Lượt sử dụng'] - a['Lượt sử dụng']) || a['Username'].localeCompare(b['Username'], 'vi'));
+    return { heads: ['Username','Lượt sử dụng','Số resource','Số ngày HĐ'], nums: new Set(['Lượt sử dụng','Số resource','Số ngày HĐ']), data };
   }
+
   if (tabId === 'by_period') {
     const rMap = new Map();
     rows.forEach(r => { const k=periodKey(r.date,p); const s=rMap.get(k)||new Set(); s.add(r.resource); rMap.set(k,s); });
-    return { heads: ['Kỳ','Lượt sử dụng','Số user HĐ','Số resource'],
-      nums: new Set(['Lượt sử dụng','Số user HĐ','Số resource']),
-      data: [...grp(rows, r => periodKey(r.date,p))].map(([k,v]) => ({
-        'Kỳ': k, 'Lượt sử dụng': v.count, 'Số user HĐ': v.users.size, 'Số resource': rMap.get(k)?.size||0
-      }))
-    };
+    const data = [...grp(rows, r => periodKey(r.date,p))].map(([k,v]) => ({
+      'Kỳ': k, 'Lượt sử dụng': v.count, 'Số user HĐ': v.users.size, 'Số resource': rMap.get(k)?.size||0
+    }));
+    data.sort((a,b) => a['Kỳ'].localeCompare(b['Kỳ']));
+    return { heads: ['Kỳ','Lượt sử dụng','Số user HĐ','Số resource'], nums: new Set(['Lượt sử dụng','Số user HĐ','Số resource']), data };
   }
+
   if (tabId === 'by_res_period') {
-    return { heads: ['Resource','Kỳ','Lượt sử dụng','Số user'],
-      nums: new Set(['Lượt sử dụng','Số user']),
-      data: [...grp(rows, r => r.resource+'|||'+periodKey(r.date,p))].map(([k,v]) => {
-        const [res,per] = k.split('|||');
-        return { 'Resource': res, 'Kỳ': per, 'Lượt sử dụng': v.count, 'Số user': v.users.size };
-      })
-    };
+    const data = [...grp(rows, r => r.resource+'|||'+periodKey(r.date,p))].map(([k,v]) => {
+      const [res,per] = k.split('|||');
+      return { 'Resource': res, 'Kỳ': per, 'Lượt sử dụng': v.count, 'Số user': v.users.size };
+    });
+    data.sort((a,b) => a['Resource'].localeCompare(b['Resource'], 'vi') || a['Kỳ'].localeCompare(b['Kỳ']));
+    return { heads: ['Resource','Kỳ','Lượt sử dụng','Số user'], nums: new Set(['Lượt sử dụng','Số user']), data };
   }
+
   if (tabId === 'by_user_resource') {
-    return { heads: ['Username','Resource','Lượt sử dụng'],
-      nums: new Set(['Lượt sử dụng']),
-      data: [...grp(rows, r => r.username+'|||'+r.resource)].map(([k,v]) => {
-        const [u,r] = k.split('|||');
-        return { 'Username': u, 'Resource': r, 'Lượt sử dụng': v.count };
-      })
-    };
+    const data = [...grp(rows, r => r.username+'|||'+r.resource)].map(([k,v]) => {
+      const [u,r] = k.split('|||');
+      return { 'Username': u, 'Resource': r, 'Lượt sử dụng': v.count };
+    });
+    data.sort((a,b) => a['Username'].localeCompare(b['Username'], 'vi') || a['Resource'].localeCompare(b['Resource'], 'vi'));
+    return { heads: ['Username','Resource','Lượt sử dụng'], nums: new Set(['Lượt sử dụng']), data };
   }
+
   if (tabId === 'top_users') {
     const rcMap = new Map();
     rows.forEach(r => { const k=r.username+'|'+r.resource; rcMap.set(k,(rcMap.get(k)||0)+r.count); });
-    const sorted = [...grp(rows, r => r.username)].sort((a,b) => b[1].count-a[1].count).slice(0,20);
-    return { heads: ['Hạng','Username','Lượt sử dụng','Resource nhiều nhất'],
-      nums: new Set(['Hạng','Lượt sử dụng']),
-      data: sorted.map(([u,v],i) => {
-        let top='', topC=0;
-        resources.forEach(res => { const c=rcMap.get(u+'|'+res)||0; if(c>topC){topC=c;top=res;} });
-        return { 'Hạng': i+1, 'Username': u, 'Lượt sử dụng': v.count, 'Resource nhiều nhất': top||'-' };
-      })
-    };
+    const sorted = [...grp(rows, r => r.username)]
+      .sort((a,b) => (b[1].count - a[1].count) || a[0].localeCompare(b[0], 'vi'))
+      .slice(0,20);
+    const data = sorted.map(([u,v],i) => {
+      let top='', topC=-1;
+      resources.forEach(res => {
+        const c=rcMap.get(u+'|'+res)||0;
+        if(c>topC){topC=c;top=res;}
+      });
+      return { 'Hạng': i+1, 'Username': u, 'Lượt sử dụng': v.count, 'Resource nhiều nhất': top||'-' };
+    });
+    return { heads: ['Hạng','Username','Lượt sử dụng','Resource nhiều nhất'], nums: new Set(['Hạng','Lượt sử dụng']), data };
   }
+
   return { heads:[], nums: new Set(), data:[] };
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Render UI ─────────────────────────────────────────────────────────────────
 let currentData = null;
 
 function refresh() {
+  if ($('advSummary')) updateAdvSummary();
   const rows = getFiltered();
   if (!rows.length) { $('reportCard').classList.add('hidden'); return; }
   $('reportCard').classList.remove('hidden');
 
-  // tabs
+  // Tabs
   $('tabBar').innerHTML = TABS.map((t,i) =>
     `<button class="tab${i===activeTab?' on':''}" onclick="setTab(${i})">${t.label}</button>`).join('');
 
-  // stats
+  // Stats
   const total = rows.reduce((s,r) => s+r.count, 0);
   const users = new Set(rows.map(r=>r.username)).size;
   const resN  = new Set(rows.map(r=>r.resource)).size;
@@ -482,23 +764,25 @@ function refresh() {
     ['Resource · Kỳ',     resN + ' · ' + dates],
   ].map(([l,v]) => `<div class="stat"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
 
-  // build & sort data
+  // Build & Sort
   const { heads, nums, data } = buildData(rows, TABS[activeTab].id);
   if (sortCol && heads.includes(sortCol)) {
     data.sort((a,b) => {
       const va=a[sortCol], vb=b[sortCol];
-      const n = typeof va==='number';
-      const cmp = n ? va-vb : String(va).localeCompare(String(vb),'vi');
+      const isNum = typeof va === 'number';
+      let cmp = isNum ? va - vb : String(va||'').localeCompare(String(vb||''), 'vi');
+      if (cmp === 0) {
+        // Tie-breaker bằng cột đầu tiên
+        const k0 = heads[0];
+        cmp = String(a[k0]||'').localeCompare(String(b[k0]||''), 'vi');
+      }
       return sortAsc ? cmp : -cmp;
     });
-  } else {
-    const numHead = heads.find(h => nums.has(h) && h !== 'Hạng');
-    if (numHead) data.sort((a,b) => (b[numHead]||0)-(a[numHead]||0));
   }
 
   currentData = { heads, nums, data };
 
-  // paginate
+  // Pagination
   const total_rows = data.length;
   const page_data  = data.slice(curPage*PAGE, (curPage+1)*PAGE);
 
@@ -538,34 +822,35 @@ function doSort(col) {
 }
 function goPage(d) { curPage+=d; refresh(); }
 
-// ── Export ────────────────────────────────────────────────────────────────────
+// ── Export Functions ──────────────────────────────────────────────────────────
 function exportName() { return 'bao_cao_' + TABS[activeTab].id; }
 
-function doExport(fmt) {
-  if (!currentData?.data.length) return;
-  const { heads, data } = currentData;
+function exportTable(heads, data, filenameBase, fmt) {
   if (fmt === 'xlsx') {
     const ws = XLSX.utils.json_to_sheet(data, { header: heads });
-    // Style header row bold
     const range = XLSX.utils.decode_range(ws['!ref']);
     for (let C = range.s.c; C <= range.e.c; C++) {
       const addr = XLSX.utils.encode_cell({ r:0, c:C });
       if (!ws[addr]) continue;
       ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0EDE8' } } };
     }
-    // Auto column width
     ws['!cols'] = heads.map(h => ({ wch: Math.max(h.length+2, ...data.map(r=>String(r[h]??'').length)) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Báo cáo');
-    XLSX.writeFile(wb, exportName()+'.xlsx');
+    XLSX.writeFile(wb, filenameBase+'.xlsx');
   } else {
     let csv = '\uFEFF' + heads.join(',') + '\n';
     data.forEach(r => { csv += heads.map(h => { const v=r[h]??''; return String(v).includes(',')?`"${v}"`:v; }).join(',') + '\n'; });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
-    a.download = exportName()+'.csv';
+    a.download = filenameBase+'.csv';
     a.click();
   }
+}
+
+function doExport(fmt) {
+  if (!currentData?.data.length) return;
+  exportTable(currentData.heads, currentData.data, exportName(), fmt);
 }
 
 function doCopy() {
@@ -579,13 +864,29 @@ function doCopy() {
   });
 }
 
-// ── Events ────────────────────────────────────────────────────────────────────
+// ── Event Listeners ───────────────────────────────────────────────────────────
 const dz = $('dz');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
 $('fi').addEventListener('change', e => handleFiles(e.target.files));
 ['minCount','dateFrom','dateTo','period'].forEach(id => $(id).addEventListener('change', () => { curPage=0; refresh(); }));
+['ulenMin','ulenMax'].forEach(id => $(id).addEventListener('input', () => { curPage=0; refresh(); }));
+['charType','wcField'].forEach(id => $(id).addEventListener('change', () => { curPage=0; refresh(); }));
+document.querySelectorAll('input[name=wcMode]').forEach(r => r.addEventListener('change', () => { curPage=0; refresh(); }));
+$('wcPattern').addEventListener('input', () => { curPage=0; refresh(); });
+
+function updateAdvSummary() {
+  if (!allRows.length) return;
+  const f = getAdvFilters();
+  const before = allRows.filter(r => !excluded.has(r.resource) && r.count >= f.minCount &&
+    (!f.dateFrom || r.date >= f.dateFrom) && (!f.dateTo || r.date <= f.dateTo));
+  const after = applyAdvFilters(before, f);
+  const box = $('advSummary');
+  if (f.ulenMin == null && f.ulenMax == null && f.charType === 'any' && !f.wcPattern) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.textContent = `Lọc nâng cao: ${before.length.toLocaleString('vi')} → ${after.length.toLocaleString('vi')} dòng (loại ${(before.length-after.length).toLocaleString('vi')} dòng)`;
+}
 </script>
 </body>
 </html>
