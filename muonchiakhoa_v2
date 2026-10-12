@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trạm Quét Chìa Khóa Thư Viện</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 24px 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            text-align: center;
+        }
+
+        .header-icon {
+            width: 56px;
+            height: 56px;
+            background: #eff6ff;
+            color: var(--primary);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 12px;
+        }
+
+        h2 { font-size: 20px; font-weight: 700; margin: 0 0 6px 0; }
+        p.subtitle { font-size: 13px; color: var(--text-sub); margin: 0 0 20px 0; line-height: 1.4; }
+
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .stepper::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: #e2e8f0;
+            z-index: 1;
+            transform: translateY(-50%);
+        }
+        .step-item {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: var(--text-sub);
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+        .step-item.active { background: var(--primary); color: white; box-shadow: 0 0 0 4px #dbeafe; }
+        .step-item.done { background: var(--success); color: white; }
+
+        .scanner-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            min-height: 260px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #reader { width: 100%; }
+
+        .permission-box {
+            padding: 30px 20px;
+            color: white;
+            text-align: center;
+        }
+        .btn-start {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            transition: transform 0.1s ease;
+        }
+        .btn-start:active { transform: scale(0.97); }
+
+        .manual-input-box {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .manual-input-box input {
+            flex: 1;
+            padding: 12px 14px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+        }
+        .manual-input-box input:focus { border-color: var(--primary); }
+        .btn-manual {
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .results-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .result-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            text-align: left;
+        }
+        .result-card.active { border-color: var(--primary); background: #eff6ff; }
+        .result-card.success { border-color: var(--success); background: #f0fdf4; }
+        .result-label { font-size: 12px; color: var(--text-sub); display: block; margin-bottom: 2px; }
+        .result-val { font-weight: 700; color: var(--text-main); font-size: 15px; }
+
+        .btn-next {
+            width: 100%;
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 12px;
+            margin-top: 16px;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+        }
+        .btn-reset {
+            background: transparent;
+            color: var(--text-sub);
+            border: none;
+            font-size: 13px;
+            margin-top: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* Loading Overlay Status */
+        .status-overlay {
+            display: none;
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .status-loading { background: #fef3c7; color: #b45309; }
+        .status-success { background: #dcfce7; color: #15803d; }
+        .status-error { background: #fee2e2; color: #b91c1c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-icon" id="headerIcon">🪪</div>
+    <h2 id="mainTitle">Mượn Chìa Khóa Tủ</h2>
+    <p class="subtitle" id="mainSub">Quét camera hoặc nhập mã thủ công bên dưới</p>
+
+    <div class="stepper">
+        <div class="step-item active" id="stepIndicator1">1</div>
+        <div class="step-item" id="stepIndicator2">2</div>
+    </div>
+
+    <div class="scanner-wrapper">
+        <div id="permissionBox" class="permission-box">
+            <p style="font-size: 14px; margin-bottom: 16px; color: #94a3b8;">Nhấn bên dưới để mở Camera sau và bắt đầu quét</p>
+            <button class="btn-start" onclick="initCameraStep1()">📷 Mở Camera Quét Thẻ</button>
+        </div>
+        <div id="reader" style="display: none;"></div>
+    </div>
+
+    <div class="manual-input-box" id="manualInputBox">
+        <input type="text" id="manualInput" placeholder="Nhập Mã Sinh Viên thủ công..." onkeydown="if(event.key==='Enter') submitManual()">
+        <button class="btn-manual" onclick="submitManual()">Gửi</button>
+    </div>
+
+    <div id="statusBox" class="status-overlay"></div>
+
+    <div class="results-container">
+        <div class="result-card active" id="cardMssv">
+            <div>
+                <span class="result-label">1. Thẻ Sinh Viên / Thư Viện</span>
+                <span class="result-val" id="valMssv">Chờ quét / nhập...</span>
+            </div>
+            <span id="statusIcon1">⏳</span>
+        </div>
+
+        <div class="result-card" id="cardChia">
+            <div>
+                <span class="result-label">2. Mã Chìa Khóa</span>
+                <span class="result-val" id="valChia">Chờ hoàn thành B1...</span>
+            </div>
+            <span id="statusIcon2">🔒</span>
+        </div>
+    </div>
+
+    <button class="btn-next" id="btnGoStep2" onclick="initCameraStep2()">🔑 Quét Mã Chìa Khóa Bằng Camera ➔</button>
+
+    <button class="btn-reset" onclick="resetAll()">🔄 Nhập lại từ đầu</button>
+</div>
+
+<script>
+    // THÔNG TIN CẤU HÌNH APPSHEET API
+    const APP_ID = "7d2a3cb4-d888-4e3e-b083-b006db8bea56";
+    const TABLE_NAME = "NhatKy_MuonTra"; // Ví dụ: "NhatKy_MuonTra"
+    const ACCESS_KEY = "V2-Szau8-5wD18-sR2hF-9Qj7f-rGZd5-6lktr-MEvp9-pwsPa"; // Dán Application Access Key ở Bước 1 vào đây
+
+    let currentStep = 1;
+    let mssvValue = "";
+    let chiaValue = "";
+    let html5QrCode = null;
+
+    function getScanner() {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+        return html5QrCode;
+    }
+
+    async function initCameraStep1() {
+        document.getElementById("permissionBox").style.display = "none";
+        document.getElementById("reader").style.display = "block";
+
+        const scanner = getScanner();
+        const config = { fps: 15, qrbox: { width: 240, height: 240 } };
+
+        try {
+            await scanner.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText) => processMssv(decodedText)
+            );
+        } catch (err) {
+            alert("Không thể mở Camera sau. Bạn có thể sử dụng ô nhập thủ công!");
+        }
+    }
+
+    async function processMssv(value) {
+        if (!value || !value.trim()) {
+            alert("Vui lòng nhập hoặc quét Mã Sinh Viên!");
+            return;
+        }
+
+        mssvValue = value.trim();
+
+        try {
+            const scanner = getScanner();
+            if (scanner.isScanning) await scanner.stop();
+        } catch (e) {}
+
+        document.getElementById("permissionBox").style.display = "none";
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("valMssv").innerText = mssvValue;
+        document.getElementById("statusIcon1").innerText = "✅";
+        document.getElementById("cardMssv").className = "result-card success";
+
+        currentStep = 2;
+        document.getElementById("stepIndicator1").className = "step-item done";
+        document.getElementById("stepIndicator1").innerText = "✓";
+        document.getElementById("stepIndicator2").className = "step-item active";
+
+        document.getElementById("headerIcon").innerText = "🔑";
+        document.getElementById("mainTitle").innerText = "Mã Chìa Khóa";
+        document.getElementById("mainSub").innerText = "Đã nhận MSSV. Mở camera quét hoặc nhập tay mã chìa.";
+
+        document.getElementById("cardChia").className = "result-card active";
+        document.getElementById("valChia").innerText = "Sẵn sàng...";
+        document.getElementById("statusIcon2").innerText = "📷";
+
+        const manualInput = document.getElementById("manualInput");
+        manualInput.value = "";
+        manualInput.placeholder = "Nhập Mã Chìa Khóa thủ công...";
+        manualInput.focus();
+
+        document.getElementById("btnGoStep2").style.display = "block";
+
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
+
+    async function initCameraStep2() {
+        document.getElementById("btnGoStep2").style.display = "none";
+        document.getElementById("reader").style.display = "block";
+
+        const scanner = getScanner();
+        const config = { fps: 15, qrbox: { width: 240, height: 240 } };
+
+        try {
+            await scanner.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText) => processChia(decodedText)
+            );
+        } catch (err) {
+            alert("Không thể mở Camera sau.");
+        }
+    }
+
+    async function processChia(value) {
+        if (!value || !value.trim()) {
+            alert("Vui lòng nhập hoặc quét Mã Chìa Khóa!");
+            return;
+        }
+
+        chiaValue = value.trim();
+
+        try {
+            const scanner = getScanner();
+            if (scanner.isScanning) await scanner.stop();
+        } catch (e) {}
+
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("btnGoStep2").style.display = "none";
+        document.getElementById("manualInputBox").style.display = "none";
+
+        document.getElementById("valChia").innerText = chiaValue;
+        document.getElementById("statusIcon2").innerText = "✅";
+        document.getElementById("cardChia").className = "result-card success";
+
+        document.getElementById("stepIndicator2").className = "step-item done";
+        document.getElementById("stepIndicator2").innerText = "✓";
+
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+        // GỬI DỮ LIỆU NGẦM VÀO APPSHEET QUA REST API
+        sendDataToAppSheet();
+    }
+
+    // Hàm gọi API đẩy dữ liệu vào AppSheet mà không mở giao diện
+    function sendDataToAppSheet() {
+        const statusBox = document.getElementById("statusBox");
+        statusBox.style.display = "block";
+        statusBox.className = "status-overlay status-loading";
+        statusBox.innerText = "⏳ Đang ghi nhận dữ liệu vào AppSheet...";
+
+        const apiUrl = `https://api.appsheet.com/api/v2/apps/${APP_ID}/tables/${encodeURIComponent(TABLE_NAME)}/Action`;
+
+        const payload = {
+            "Action": "Add",
+            "Properties": {
+                "Locale": "vi-VN",
+                "Timezone": "SE Asia Standard Time"
+            },
+            "Rows": [
+                {
+                    "Ma_Nhap_Vao": mssvValue,
+                    "So_Chia": chiaValue
+                }
+            ]
+        };
+
+        fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "ApplicationAccessKey": ACCESS_KEY,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (response.ok) {
+                statusBox.className = "status-overlay status-success";
+                statusBox.innerText = "🎉 Mượn chìa thành công! Đang làm mới...";
+                setTimeout(() => {
+                    resetAll();
+                }, 2500);
+            } else {
+                throw new Error("Lỗi phản hồi API từ AppSheet");
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            statusBox.className = "status-overlay status-error";
+            statusBox.innerText = "❌ Lỗi ghi dữ liệu! Vui lòng thử lại.";
+        });
+    }
+
+    function submitManual() {
+        const val = document.getElementById("manualInput").value;
+        if (currentStep === 1) {
+            processMssv(val);
+        } else if (currentStep === 2) {
+            processChia(val);
+        }
+    }
+
+    async function resetAll() {
+        try {
+            const scanner = getScanner();
+            if (scanner.isScanning) {
+                await scanner.stop();
+            }
+        } catch(e) {}
+
+        currentStep = 1;
+        mssvValue = "";
+        chiaValue = "";
+
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("permissionBox").style.display = "block";
+        document.getElementById("btnGoStep2").style.display = "none";
+        document.getElementById("statusBox").style.display = "none";
+
+        document.getElementById("headerIcon").innerText = "🪪";
+        document.getElementById("mainTitle").innerText = "Mượn Chìa Khóa Tủ";
+        document.getElementById("mainSub").innerText = "Quét camera hoặc nhập mã thủ công bên dưới";
+
+        document.getElementById("stepIndicator1").className = "step-item active";
+        document.getElementById("stepIndicator1").innerText = "1";
+        document.getElementById("stepIndicator2").className = "step-item";
+        document.getElementById("stepIndicator2").innerText = "2";
+
+        document.getElementById("cardMssv").className = "result-card active";
+        document.getElementById("valMssv").innerText = "Chờ quét / nhập...";
+        document.getElementById("statusIcon1").innerText = "⏳";
+
+        document.getElementById("cardChia").className = "result-card";
+        document.getElementById("valChia").innerText = "Chờ hoàn thành B1...";
+        document.getElementById("statusIcon2").innerText = "🔒";
+
+        const manualBox = document.getElementById("manualInputBox");
+        manualBox.style.display = "flex";
+        const manualInput = document.getElementById("manualInput");
+        manualInput.value = "";
+        manualInput.placeholder = "Nhập Mã Sinh Viên thủ công...";
+    }
+</script>
+
+</body>
+</html>
