@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trạm Quét Chìa Khóa Thư Viện</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0fdf4; margin: 0; padding: 20px; text-align: center; }
+        .card { max-width: 420px; background: white; border-radius: 16px; padding: 20px; margin: 10px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+        .step-badge { display: inline-block; background: #16a34a; color: white; padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-bottom: 12px; }
+        h2 { color: #0f172a; margin: 8px 0; font-size: 20px; }
+        p { color: #64748b; font-size: 14px; margin-bottom: 16px; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0; }
+        .data-box { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; margin-top: 15px; text-align: left; font-size: 13px; }
+        .data-item { font-weight: bold; color: #1e293b; }
+        .btn-reset { background: #f1f5f9; color: #475569; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 12px; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="stepBadge" class="step-badge">BƯỚC 1 / 2</div>
+    <h2 id="stepTitle">📷 QUÉT THẺ SINH VIÊN</h2>
+    <p id="stepDesc">Đưa mã QR / Barcode trên Thẻ Sinh Viên vào khung hình</p>
+
+    <div id="reader"></div>
+
+    <div class="data-box">
+        <div>Mã Sinh Viên: <span id="valMssv" class="data-item">Chưa quét...</span></div>
+        <div style="margin-top: 5px;">Mã Chìa Khóa: <span id="valChia" class="data-item">Chờ bước 2...</span></div>
+    </div>
+
+    <button class="btn-reset" onclick="resetScan()">🔄 Quét lại từ đầu</button>
+</div>
+
+<script>
+    const APP_ID = "7d2a3cb4-d888-4e3e-b083-b006db8bea56";
+    const FORM_VIEW = "Muon_Tra_Form";
+
+    let step = 1;
+    let mssvValue = "";
+    let chiaValue = "";
+    let html5QrcodeScanner;
+
+    function onScanSuccess(decodedText) {
+        if (step === 1) {
+            // Hoàn thành bước 1: Lấy MSSV
+            mssvValue = decodedText;
+            document.getElementById("valMssv").innerText = mssvValue;
+            document.getElementById("valMssv").style.color = "#16a34a";
+
+            // Chuyển sang bước 2: Quét chìa
+            step = 2;
+            document.getElementById("stepBadge").innerText = "BƯỚC 2 / 2";
+            document.getElementById("stepBadge").style.background = "#0284c7";
+            document.getElementById("stepTitle").innerText = "🔑 QUÉT MÃ CHÌA KHÓA";
+            document.getElementById("stepDesc").innerText = "Tiếp tục đưa mã QR / Barcode trên chìa khóa vào khung hình";
+            document.getElementById("valChia").innerText = "Đang chờ quét...";
+
+        } else if (step === 2) {
+            // Hoàn thành bước 2: Lấy mã chìa & Chuyển hướng AppSheet
+            chiaValue = decodedText;
+            document.getElementById("valChia").innerText = chiaValue;
+            document.getElementById("valChia").style.color = "#0284c7";
+
+            // Tắt camera
+            html5QrcodeScanner.clear();
+
+            // Đẩy dữ liệu sang AppSheet thông qua URL Defaults
+            const defaults = {
+                "Ma_Nhap_Vao": mssvValue,
+                "So_Chia": chiaValue
+            };
+
+            const redirectUrl = `https://www.appsheet.com/start/${APP_ID}#control=${FORM_VIEW}&defaults=${encodeURIComponent(JSON.stringify(defaults))}`;
+            
+            document.getElementById("stepTitle").innerText = "⏳ ĐANG CHUYỂN VỀ FORM...";
+            document.getElementById("stepDesc").innerText = "Dữ liệu đã ghi nhận, đang mở ứng dụng...";
+
+            setTimeout(() => {
+                window.location.href = redirectUrl;
+            }, 600);
+        }
+    }
+
+    function resetScan() {
+        step = 1;
+        mssvValue = "";
+        chiaValue = "";
+        document.getElementById("stepBadge").innerText = "BƯỚC 1 / 2";
+        document.getElementById("stepBadge").style.background = "#16a34a";
+        document.getElementById("stepTitle").innerText = "📷 QUÉT THẺ SINH VIÊN";
+        document.getElementById("stepDesc").innerText = "Đưa mã QR / Barcode trên Thẻ Sinh Viên vào khung hình";
+        document.getElementById("valMssv").innerText = "Chưa quét...";
+        document.getElementById("valMssv").style.color = "#1e293b";
+        document.getElementById("valChia").innerText = "Chờ bước 2...";
+        document.getElementById("valChia").style.color = "#1e293b";
+    }
+
+    // Khởi chạy Camera
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 15, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true
+    }, false);
+
+    html5QrcodeScanner.render(onScanSuccess);
+</script>
+
+</body>
+</html>
