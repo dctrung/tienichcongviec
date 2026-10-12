@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quét Mã QR Thư Viện</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f8; margin: 0; padding: 20px; }
+        #reader { width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; }
+        .btn-cancel { background: #ef4444; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h3>📷 ĐƯA MÃ QR/BARCODE VÀO KHUNG CẢM BIẾN</h3>
+    <div id="reader"></div>
+    <button class="btn-cancel" onclick="window.history.back()">Hủy Quét</button>
+
+    <script>
+        // Lấy thông số từ URL (VD: ?target_col=Ma_Nhap_Vao&app_id=7d2a3cb4-d888-4e3e-b083-b006db8bea56)
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetCol = urlParams.get('col') || 'Ma_Nhap_Vao';
+        const appId = urlParams.get('appId') || '7d2a3cb4-d888-4e3e-b083-b006db8bea56';
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Ngắt camera
+            html5QrcodeScanner.clear();
+            
+            // Redirect quay lại Form AppSheet kèm dữ liệu vừa quét (Prefill)
+            const appsheetUrl = `https://www.appsheet.com/start/${appId}#control=Muon_Tra_Form&defaults={"${targetCol}":"${encodeURIComponent(decodedText)}"}`;
+            window.location.href = appsheetUrl;
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>
