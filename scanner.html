@@ -3,36 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quét Mã QR Thư Viện</title>
+    <title>Trạm Quét Chìa Khóa Thư Viện</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f8; margin: 0; padding: 20px; }
-        #reader { width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; }
-        .btn-cancel { background: #ef4444; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; margin-top: 15px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0fdf4; margin: 0; padding: 20px; text-align: center; }
+        .card { max-width: 420px; background: white; border-radius: 16px; padding: 20px; margin: 10px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+        .step-badge { display: inline-block; background: #16a34a; color: white; padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-bottom: 12px; }
+        h2 { color: #0f172a; margin: 8px 0; font-size: 20px; }
+        p { color: #64748b; font-size: 14px; margin-bottom: 16px; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0; }
+        .data-box { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; margin-top: 15px; text-align: left; font-size: 13px; }
+        .input-group { display: flex; gap: 6px; margin-top: 6px; }
+        .input-control { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
+        .input-control:focus { border-color: #16a34a; }
+        .btn-confirm { background: #16a34a; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .btn-confirm-step2 { background: #0284c7; }
+        .btn-reset { background: #f1f5f9; color: #475569; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; margin-top: 15px; font-size: 13px; font-weight: 500; }
+        .divider { margin: 12px 0; border-top: 1px dashed #e2e8f0; }
     </style>
 </head>
 <body>
-    <h3>📷 ĐƯA MÃ QR/BARCODE VÀO KHUNG CẢM BIẾN</h3>
+
+<div class="card">
+    <div id="stepBadge" class="step-badge">BƯỚC 1 / 2</div>
+    <h2 id="stepTitle">📷 QUÉT THẺ SINH VIÊN</h2>
+    <p id="stepDesc">Đưa mã QR / Barcode trên Thẻ Sinh Viên vào khung hình hoặc nhập tay bên dưới</p>
+
     <div id="reader"></div>
-    <button class="btn-cancel" onclick="window.history.back()">Hủy Quét</button>
 
-    <script>
-        // Lấy thông số từ URL (VD: ?target_col=Ma_Nhap_Vao&app_id=7d2a3cb4-d888-4e3e-b083-b006db8bea56)
-        const urlParams = new URLSearchParams(window.location.search);
-        const targetCol = urlParams.get('col') || 'Ma_Nhap_Vao';
-        const appId = urlParams.get('appId') || '7d2a3cb4-d888-4e3e-b083-b006db8bea56';
+    <div class="data-box">
+        <label style="font-weight: bold; color: #1e293b; display: block;">1. Mã Sinh Viên / Thư Viện:</label>
+        <div class="input-group">
+            <input type="text" id="inputMssv" class="input-control" placeholder="Quét hoặc nhập MSSV...">
+            <button id="btnMssv" class="btn-confirm" onclick="submitManualMssv()">Xác nhận</button>
+        </div>
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // Ngắt camera
-            html5QrcodeScanner.clear();
-            
-            // Redirect quay lại Form AppSheet kèm dữ liệu vừa quét (Prefill)
-            const appsheetUrl = `https://www.appsheet.com/start/${appId}#control=Muon_Tra_Form&defaults={"${targetCol}":"${encodeURIComponent(decodedText)}"}`;
-            window.location.href = appsheetUrl;
+        <div class="divider"></div>
+
+        <label style="font-weight: bold; color: #1e293b; display: block;">2. Mã Chìa Khóa:</label>
+        <div class="input-group">
+            <input type="text" id="inputChia" class="input-control" placeholder="Chờ bước 1..." disabled>
+            <button id="btnChia" class="btn-confirm btn-confirm-step2" onclick="submitManualChia()" disabled>Xác nhận</button>
+        </div>
+    </div>
+
+    <button class="btn-reset" onclick="resetScan()">🔄 Quét / Nhập lại từ đầu</button>
+</div>
+
+<script>
+    const APP_ID = "7d2a3cb4-d888-4e3e-b083-b006db8bea56";
+    const FORM_VIEW = "Muon_Tra_Form";
+
+    let step = 1;
+    let mssvValue = "";
+    let chiaValue = "";
+    let html5QrcodeScanner;
+
+    // Xử lý khi hoàn thành Bước 1 (dù quét hay nhập tay)
+    function handleStep1Done(value) {
+        mssvValue = value;
+        document.getElementById("inputMssv").value = mssvValue;
+        document.getElementById("inputMssv").disabled = true;
+        document.getElementById("btnMssv").disabled = true;
+
+        step = 2;
+        document.getElementById("stepBadge").innerText = "BƯỚC 2 / 2";
+        document.getElementById("stepBadge").style.background = "#0284c7";
+        document.getElementById("stepTitle").innerText = "🔑 QUÉT MÃ CHÌA KHÓA";
+        document.getElementById("stepDesc").innerText = "Đưa mã QR / Barcode trên chìa khóa vào khung hình hoặc nhập tay bên dưới";
+
+        document.getElementById("inputChia").disabled = false;
+        document.getElementById("inputChia").placeholder = "Quét hoặc nhập mã chìa...";
+        document.getElementById("inputChia").focus();
+        document.getElementById("btnChia").disabled = false;
+    }
+
+    // Xử lý khi hoàn thành Bước 2 -> Chuyển hướng AppSheet
+    function handleStep2Done(value) {
+        chiaValue = value;
+        document.getElementById("inputChia").value = chiaValue;
+
+        if (html5QrcodeScanner) {
+            try { html5QrcodeScanner.clear(); } catch(e) {}
         }
 
-        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
-        html5QrcodeScanner.render(onScanSuccess);
-    </script>
+        const defaults = {
+            "Ma_Nhap_Vao": mssvValue,
+            "So_Chia": chiaValue
+        };
+
+        const redirectUrl = `https://www.appsheet.com/start/${APP_ID}#control=${FORM_VIEW}&defaults=${encodeURIComponent(JSON.stringify(defaults))}`;
+
+        document.getElementById("stepTitle").innerText = "⏳ ĐANG CHUYỂN VỀ FORM...";
+        document.getElementById("stepDesc").innerText = "Dữ liệu đã ghi nhận, đang mở ứng dụng...";
+
+        setTimeout(() => {
+            window.location.href = redirectUrl;
+        }, 500);
+    }
+
+    // Sự kiện khi camera quét trúng mã
+    function onScanSuccess(decodedText) {
+        if (step === 1) {
+            handleStep1Done(decodedText);
+        } else if (step === 2) {
+            handleStep2Done(decodedText);
+        }
+    }
+
+    // Nhập tay MSSV
+    function submitManualMssv() {
+        const val = document.getElementById("inputMssv").value.trim();
+        if (!val) {
+            alert("Vui lòng nhập Mã số sinh viên!");
+            return;
+        }
+        handleStep1Done(val);
+    }
+
+    // Nhập tay Mã chìa khóa
+    function submitManualChia() {
+        const val = document.getElementById("inputChia").value.trim();
+        if (!val) {
+            alert("Vui lòng nhập Mã chìa khóa!");
+            return;
+        }
+        handleStep2Done(val);
+    }
+
+    // Làm mới quá trình
+    function resetScan() {
+        step = 1;
+        mssvValue = "";
+        chiaValue = "";
+
+        document.getElementById("stepBadge").innerText = "BƯỚC 1 / 2";
+        document.getElementById("stepBadge").style.background = "#16a34a";
+        document.getElementById("stepTitle").innerText = "📷 QUÉT THẺ SINH VIÊN";
+        document.getElementById("stepDesc").innerText = "Đưa mã QR / Barcode trên Thẻ Sinh Viên vào khung hình hoặc nhập tay bên dưới";
+
+        document.getElementById("inputMssv").value = "";
+        document.getElementById("inputMssv").disabled = false;
+        document.getElementById("btnMssv").disabled = false;
+
+        document.getElementById("inputChia").value = "";
+        document.getElementById("inputChia").disabled = true;
+        document.getElementById("inputChia").placeholder = "Chờ bước 1...";
+        document.getElementById("btnChia").disabled = true;
+
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+                fps: 15, 
+                qrbox: { width: 250, height: 250 },
+                rememberLastUsedCamera: true
+            }, false);
+            html5QrcodeScanner.render(onScanSuccess);
+        }
+    }
+
+    // Khởi tạo Camera
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 15, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true
+    }, false);
+
+    html5QrcodeScanner.render(onScanSuccess);
+</script>
+
 </body>
 </html>
