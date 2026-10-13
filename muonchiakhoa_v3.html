@@ -108,15 +108,15 @@
     /* ---------- Scanner ---------- */
     .scanner {
         position: relative;
-        isolation: isolate;
         display: flex; align-items: center; justify-content: center;
         min-height: 270px;
-        max-height: 58vh; max-height: 58dvh;
         overflow: hidden;
         border-radius: 22px;
         background: #070b14;
     }
     .scanner[data-state="hidden"] { display: none; }
+    /* Khi camera chạy: không bo góc + cắt nội dung quanh <video> (một số GPU Android hiển thị đen) */
+    .scanner[data-state="scanning"], .scanner[data-state="loading"] { overflow: visible; border-radius: 0; }
 
     /* Video do thư viện tạo ra. Không ép kích thước để vùng giải mã luôn khớp. */
     .scanner #reader {
@@ -137,30 +137,22 @@
         top: 50%; left: 50%;
         width: var(--qr, 70%); height: var(--qr, 70%);
         transform: translate(-50%, -50%);
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .42);
         border-radius: 18px;
     }
     .scanner[data-state="scanning"] .frame { display: block; }
+    .scanner[data-hold="1"] .frame, .scanner[data-hold="1"] .cam-tools { display: none; }
     .frame i { position: absolute; width: 30px; height: 30px; border: 4px solid #fff; }
     .frame i:nth-child(1) { top: 0; left: 0;  border-right: 0; border-bottom: 0; border-top-left-radius: 18px; }
     .frame i:nth-child(2) { top: 0; right: 0; border-left: 0;  border-bottom: 0; border-top-right-radius: 18px; }
     .frame i:nth-child(3) { bottom: 0; left: 0;  border-right: 0; border-top: 0; border-bottom-left-radius: 18px; }
     .frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0;  border-top: 0; border-bottom-right-radius: 18px; }
-    .frame::after {
-        content: ""; position: absolute; left: 8px; right: 8px; top: 8px; height: 2px;
-        background: linear-gradient(90deg, transparent, #38bdf8, transparent);
-        box-shadow: 0 0 10px #38bdf8;
-        animation: sweep 2.2s ease-in-out infinite alternate;
-    }
-    @keyframes sweep { to { transform: translateY(calc(var(--qr, 200px) - 20px)); } }
 
     .cam-tools { display: none; position: absolute; z-index: 4; top: 10px; right: 10px; gap: 8px; }
     .scanner[data-state="scanning"] .cam-tools { display: flex; }
     .tool-btn {
         width: 42px; height: 42px; border: 0; border-radius: 50%;
         display: grid; place-items: center;
-        background: rgba(15, 23, 42, .62); color: #fff; font-size: 18px; cursor: pointer;
-        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+        background: rgba(15, 23, 42, .72); color: #fff; font-size: 18px; cursor: pointer;
     }
     .tool-btn[hidden] { display: none; }
     .tool-btn.on { background: #f59e0b; }
@@ -175,6 +167,7 @@
     .scanner[data-state="idle"]    .panel-idle    { display: flex; }
     .scanner[data-state="loading"] .panel-loading { display: flex; background: rgba(7, 11, 20, .78); }
     .scanner[data-state="error"]   .panel-error   { display: flex; }
+    .scanner[data-state="scanning"][data-hold="1"] .panel-hold { display: flex; background: rgba(7, 11, 20, .6); }
 
     .spinner {
         width: 34px; height: 34px; border-radius: 50%;
@@ -247,12 +240,18 @@
         color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline;
     }
 
+    .dbg {
+        margin-top: 12px; padding: 10px; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+        font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; color: #9fe870; background: #0b1220; border-radius: 10px;
+    }
+    .status small { display: block; margin-top: 4px; font-weight: 500; opacity: .85; }
+
     @media (max-width: 360px) {
         .app { padding: 16px 14px; border-radius: 22px; }
         .step .lbl { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
-        .frame::after, .spinner { animation: none; }
+        .spinner { animation: none; }
         * { transition: none !important; }
     }
 </style>
@@ -287,6 +286,12 @@
         <div class="panel panel-idle">
             <p id="idleText">Nhấn bên dưới để mở camera sau và bắt đầu quét</p>
             <button class="btn" id="btnStart" type="button">📷 Mở Camera Quét Thẻ</button>
+            <button class="btn ghost" id="btnPhoto1" type="button">📸 Chụp ảnh mã (nếu camera lỗi)</button>
+        </div>
+
+        <div class="panel panel-hold">
+            <p>Đã nhận MSSV. Đưa mã trên chìa khóa vào khung rồi nhấn nút bên dưới.</p>
+            <button class="btn" id="btnResume" type="button">🔑 Quét Mã Chìa Khóa</button>
         </div>
 
         <div class="panel panel-loading" aria-live="polite">
@@ -297,6 +302,7 @@
         <div class="panel panel-error">
             <p id="camErrText">Không thể mở camera.</p>
             <button class="btn" id="btnRetryCam" type="button">Thử lại</button>
+            <button class="btn ghost" id="btnPhoto2" type="button">📸 Chụp ảnh mã bằng ứng dụng Camera</button>
             <p style="font-size:13px">Hoặc dùng ô nhập thủ công bên dưới.</p>
         </div>
     </section>
@@ -327,6 +333,8 @@
     </div>
 
     <button class="btn-reset" id="btnReset" type="button">🔄 Nhập lại từ đầu</button>
+    <pre class="dbg" id="dbg" hidden></pre>
+    <input type="file" id="fileIn" accept="image/*" capture="environment" hidden>
 </main>
 
 <script>
@@ -338,38 +346,54 @@ const $ = (id) => document.getElementById(id);
 let currentStep = 1;
 let mssvValue = "";
 let chiaValue = "";
-let requestId = 0;      // chống kết quả "cũ" của lần gửi trước khi đã bấm làm lại
+let requestId = 0;      // chống phản hồi "cũ" của lần gửi trước khi đã bấm làm lại
 let successTimer = null;
 
+/* Chế độ chẩn đoán: mở trang với ?debug=1 để xem nhật ký camera ngay trên màn hình */
+const DEBUG = /[?&]debug=1/.test(location.search);
+const dbgLines = [];
+function dbg(msg) {
+    console.log("[cam]", msg);
+    if (!DEBUG) return;
+    dbgLines.push(new Date().toTimeString().slice(0, 8) + " " + msg);
+    if (dbgLines.length > 60) dbgLines.shift();
+    const el = $("dbg");
+    el.hidden = false;
+    el.textContent = dbgLines.join("\n");
+    el.scrollTop = el.scrollHeight;
+}
+if (DEBUG) dbg("UA: " + navigator.userAgent + " | secure=" + window.isSecureContext);
+
 /* =====================================================================
- *  CAMERA — bộ điều khiển có hàng đợi, tự phát hiện & tự khôi phục khi đen màn hình
+ *  CAMERA — một luồng duy nhất, giữ nguyên giữa bước 1 và 2 (không mở/đóng lại),
+ *  có hàng đợi thao tác, tự phát hiện camera không ra hình và tự khôi phục
  * ===================================================================== */
 const Camera = (() => {
     const scannerEl = $("scanner");
-    let scanner = null;        // đối tượng Html5Qrcode hiện tại
-    let wantOn = false;        // người dùng đang muốn bật camera
-    let handler = null;        // hàm xử lý khi quét được
-    let locked = false;        // chặn callback bắn nhiều lần liên tiếp
+    let scanner = null;          // đối tượng Html5Qrcode hiện tại
+    let wantOn = false;          // người dùng đang muốn bật camera
+    let accepting = false;       // có nhận kết quả quét hay không (camera vẫn chạy khi false)
+    let handler = null;
+    let locked = false;          // chặn callback bắn nhiều lần liên tiếp
     let watchdog = null;
     let restarts = 0;
     let resumeAfterVisible = false;
     let queue = Promise.resolve();
-    let torchFeature = null;
-    let torchOn = false;
+    let torchFeature = null, torchOn = false;
+    let frames = 0, lastMuted = false;
 
     const MAX_AUTO_RESTARTS = 3;
     const START_TIMEOUT_MS = 10000;
+    const STALL_LIMIT_S = 6;     // số giây liên tục không có hình mới coi là treo
 
-    const setState = (s) => { scannerEl.dataset.state = s; };
+    const errName = (e) => ((e && (e.name || e.message || e)) + "");
+    const isDenied = (e) => /NotAllowed|Permission|denied/i.test(errName(e));
+    const setState = (s) => { scannerEl.dataset.state = s; if (s !== "scanning") scannerEl.dataset.hold = ""; };
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const withTimeout = (p, ms) => Promise.race([
-        p,
-        new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), ms))
-    ]);
-    // Mọi thao tác bật/tắt đều xếp hàng, tránh start/stop chồng chéo gây treo camera
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), ms))]);
     const enqueue = (fn) => (queue = queue.catch(() => {}).then(fn));
-
-    function currentVideo() { return document.querySelector("#reader video"); }
+    const currentVideo = () => document.querySelector("#reader video");
+    const isRunning = () => !!scanner && scannerEl.dataset.state === "scanning";
 
     function releaseStreamOf(video) {
         try {
@@ -380,7 +404,7 @@ const Camera = (() => {
 
     async function stopNow() {
         clearInterval(watchdog); watchdog = null;
-        torchFeature = null; torchOn = false;
+        torchFeature = null; torchOn = false; frames = 0;
         $("btnTorch").hidden = true;
         $("btnTorch").classList.remove("on");
 
@@ -390,41 +414,36 @@ const Camera = (() => {
             try { if (s.isScanning) await withTimeout(s.stop(), 3000); } catch (e) {}
             try { s.clear(); } catch (e) {}
         }
-        releaseStreamOf(video);   // đảm bảo đèn camera tắt hẳn, không giữ luồng cũ
+        releaseStreamOf(video);   // tắt hẳn luồng cũ, đèn camera tắt thật sự
     }
 
     function friendlyError(e) {
-        const name = (e && (e.name || e.message || e)) + "";
+        const name = errName(e);
         if (/NotAllowed|Permission|denied/i.test(name))
             return "Trình duyệt chưa được cấp quyền camera. Hãy cho phép camera cho trang này trong cài đặt trình duyệt.";
         if (/NotFound|DevicesNotFound/i.test(name))
             return "Không tìm thấy camera trên thiết bị này.";
         if (/NotReadable|TrackStart|Could not start|Abort/i.test(name))
-            return "Camera đang bị ứng dụng khác chiếm dùng. Hãy đóng ứng dụng đó rồi thử lại.";
+            return "Camera đang bị ứng dụng hoặc tab khác chiếm dùng. Hãy đóng các tab khác của trang này rồi thử lại.";
         if (/TIMEOUT/i.test(name))
             return "Camera phản hồi quá chậm. Hãy thử lại.";
         if (/LIB/i.test(name))
             return "Không tải được thư viện quét mã. Kiểm tra mạng rồi tải lại trang.";
-        if (/insecure|secure/i.test(name))
+        if (/insecure/i.test(name))
             return "Camera chỉ hoạt động khi trang chạy trên HTTPS.";
         return "Không thể mở camera. Hãy thử lại hoặc dùng ô nhập thủ công.";
     }
 
-    async function listCandidates() {
-        // Thứ tự thử: camera sau (độ phân giải vừa phải) → camera sau (mặc định) → từng thiết bị cụ thể
-        const list = [
-            { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
-            { facingMode: { ideal: "environment" } }
-        ];
+    // Chỉ gọi khi các cấu hình thường đã thất bại. Dùng enumerateDevices (không mở luồng camera).
+    async function deviceCandidates() {
+        const out = [];
         try {
-            const cams = await Html5Qrcode.getCameras();
-            if (cams && cams.length) {
-                const back = cams.filter((c) => /back|rear|environment|sau|trasera|arrière/i.test(c.label || ""));
-                const ordered = back.concat(cams.filter((c) => back.indexOf(c) === -1).reverse());
-                ordered.forEach((c) => list.push({ deviceId: { exact: c.id } }));
-            }
+            const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId);
+            const back = devs.filter((d) => /back|rear|environment|sau|trasera/i.test(d.label || ""));
+            const rest = devs.filter((d) => back.indexOf(d) === -1).reverse();
+            back.concat(rest).forEach((d) => out.push({ deviceId: { exact: d.deviceId } }));
         } catch (e) {}
-        return list;
+        return out;
     }
 
     async function tryStart(videoConstraints) {
@@ -440,14 +459,15 @@ const Camera = (() => {
             }
         };
         const onOk = (text) => {
-            if (locked || !wantOn) return;
+            if (locked || !wantOn || !accepting) return;
             locked = true;
-            Promise.resolve(handler && handler(text)).catch(() => {});
+            Promise.resolve(handler && handler(text))
+                .then((r) => { if (r === false) locked = false; })   // handler từ chối → cho quét tiếp
+                .catch(() => { locked = false; });
         };
         try {
             await withTimeout(s.start({ facingMode: "environment" }, config, onOk, () => {}), START_TIMEOUT_MS);
         } catch (e) {
-            // start bị treo/lỗi: dọn sạch để lần thử sau bắt đầu từ trạng thái sạch
             const v = currentVideo();
             try { if (s.isScanning) await s.stop(); } catch (_) {}
             try { s.clear(); } catch (_) {}
@@ -461,27 +481,40 @@ const Camera = (() => {
     async function startFlow() {
         if (!wantOn) return;
         setState("loading");
+        const hadCamera = !!scanner;
         await stopNow();
+        if (hadCamera) await sleep(400);          // cho phần cứng camera kịp nhả hẳn trước khi mở lại
         if (!window.Html5Qrcode) { setState("error"); $("camErrText").textContent = friendlyError("LIB"); return; }
         if (!window.isSecureContext) { setState("error"); $("camErrText").textContent = friendlyError("insecure"); return; }
 
         locked = false;
-        let lastErr = null;
-        const candidates = await listCandidates();
-
-        for (const vc of candidates) {
+        let lastErr = null, extended = false;
+        // Thử cấu hình đơn giản nhất trước (giống bản gốc), rồi mới tới các cấu hình khác
+        const list = [
+            { facingMode: { ideal: "environment" } },
+            { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        ];
+        for (let i = 0; i < list.length; i++) {
             if (!wantOn) return;
             try {
-                const s = await tryStart(vc);
+                dbg("start #" + i + " " + JSON.stringify(list[i]));
+                const s = await tryStart(list[i]);
                 if (!wantOn) { await stopNow(); return; }
                 setState("scanning");
+                if (!accepting) scannerEl.dataset.hold = "1";   // đang chờ người dùng bấm nút ở bước 2
                 afterStarted(s);
                 return;
             } catch (e) {
                 lastErr = e;
-                // Bị từ chối quyền thì thử cấu hình khác cũng vô ích
-                if (/NotAllowed|Permission|denied/i.test((e && (e.name || e.message || e)) + "")) break;
-                await sleep(250);
+                dbg("start #" + i + " lỗi: " + errName(e));
+                if (isDenied(e)) break;               // bị từ chối quyền: thử tiếp vô ích
+                if (i === list.length - 1 && !extended) {
+                    extended = true;
+                    const more = await deviceCandidates();
+                    dbg("thêm " + more.length + " camera theo deviceId");
+                    more.forEach((c) => list.push(c));
+                }
+                await sleep(400);
             }
         }
         setState("error");
@@ -489,61 +522,81 @@ const Camera = (() => {
     }
 
     function afterStarted(s) {
-        // Đèn flash (nếu thiết bị hỗ trợ)
+        const video = currentVideo();
+        const track = video && video.srcObject && video.srcObject.getVideoTracks && video.srcObject.getVideoTracks()[0];
+
+        // Hạn chế trình duyệt "chiếm" video (nút PiP/toàn màn hình của trình duyệt Xiaomi...)
+        if (video) {
+            try {
+                video.disablePictureInPicture = true;
+                video.disableRemotePlayback = true;
+                video.setAttribute("controlslist", "nofullscreen nodownload noremoteplayback");
+            } catch (e) {}
+        }
+
         try {
             const caps = s.getRunningTrackCameraCapabilities();
             const tf = caps && caps.torchFeature && caps.torchFeature();
             if (tf && tf.isSupported()) { torchFeature = tf; $("btnTorch").hidden = false; }
         } catch (e) {}
 
-        // Theo dõi track: bị ngắt/đứng hình thì tự khởi động lại
-        const video = currentVideo();
-        const track = video && video.srcObject && video.srcObject.getVideoTracks && video.srcObject.getVideoTracks()[0];
         if (track) {
+            try { dbg("track " + JSON.stringify(track.getSettings()) + " muted=" + track.muted + " state=" + track.readyState); } catch (e) {}
+            lastMuted = track.muted;
             track.addEventListener("ended", () => { if (scanner === s) recover("ended"); });
             track.addEventListener("mute", () => {
-                setTimeout(() => { if (scanner === s && track.muted) recover("muted"); }, 2500);
+                lastMuted = true;
+                setTimeout(() => { if (scanner === s && track.muted) recover("muted"); }, 3000);
             });
+            track.addEventListener("unmute", () => { lastMuted = false; });
         }
 
-        // Watchdog: kiểm tra mỗi giây xem hình có thực sự đang chạy không
-        let bad = 0, lastTime = -1;
+        // Đếm số khung hình thực sự được hiển thị
+        frames = 0;
+        const hasRVFC = !!(video && "requestVideoFrameCallback" in video);
+        if (hasRVFC) {
+            const tick = () => { frames++; if (scanner === s && currentVideo() === video) video.requestVideoFrameCallback(tick); };
+            video.requestVideoFrameCallback(tick);
+        }
+
+        let still = 0, lastFrames = -1, lastTime = -1;
         clearInterval(watchdog);
         watchdog = setInterval(() => {
             if (!wantOn || scanner !== s || document.hidden) return;
             const v = currentVideo();
             if (v && v.paused && v.readyState >= 2) v.play().catch(() => {});
+            const noMeta = !v || !v.srcObject || v.videoWidth === 0 || v.readyState < 2;
             const t = v ? v.currentTime : -1;
-            const dead = !v || !v.srcObject || v.readyState < 2 || v.videoWidth === 0;
-            const frozen = !dead && t === lastTime;
-            lastTime = t;
-            bad = (dead || frozen) ? bad + 1 : 0;
-            if (bad >= 4) { bad = 0; recover("watchdog"); }
+            // Chỉ coi là đứng hình khi CẢ HAI tín hiệu cùng không tiến (tránh báo nhầm)
+            const moved = (hasRVFC && frames !== lastFrames) || t !== lastTime;
+            lastFrames = frames; lastTime = t;
+            still = (noMeta || !moved) ? still + 1 : 0;
+            if (DEBUG) dbg("w: size=" + (v ? v.videoWidth + "x" + v.videoHeight : "-") + " ready=" + (v ? v.readyState : "-") + " frames=" + frames + " t=" + t.toFixed(1) + " muted=" + lastMuted + " still=" + still);
+            if (still >= STALL_LIMIT_S) { still = 0; recover(noMeta ? "no-frames" : "frozen"); }
         }, 1000);
     }
 
     function recover(reason) {
         if (!wantOn) return;
+        dbg("recover: " + reason + " (lần " + (restarts + 1) + ")");
         if (restarts >= MAX_AUTO_RESTARTS) {
             enqueue(async () => {
                 await stopNow();
                 setState("error");
-                $("camErrText").textContent = "Camera bị treo nhiều lần. Hãy thử lại, hoặc dùng ô nhập thủ công.";
+                $("camErrText").textContent = lastMuted
+                    ? "Camera đang bị ứng dụng hoặc tab khác chiếm dùng nên không ra hình. Hãy đóng các tab khác của trang này rồi bấm Thử lại."
+                    : "Camera không ra hình sau nhiều lần thử. Hãy bấm Thử lại, hoặc chụp ảnh mã / nhập thủ công.";
             });
             return;
         }
         restarts++;
-        console.warn("[Camera] tự khôi phục:", reason, "lần", restarts);
         enqueue(startFlow);
     }
 
-    // Quay lại tab/ứng dụng sau khi khóa màn hình hoặc chuyển app → camera thường bị đen: bật lại
+    // Quay lại sau khi khóa màn hình / chuyển app: camera thường bị đen → tắt khi ẩn, bật lại khi hiện
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
-            if (wantOn && scanner) {
-                resumeAfterVisible = true;
-                enqueue(stopNow);
-            }
+            if (wantOn && scanner) { resumeAfterVisible = true; enqueue(stopNow); }
         } else if (resumeAfterVisible) {
             resumeAfterVisible = false;
             if (wantOn) { restarts = 0; enqueue(startFlow); }
@@ -555,12 +608,18 @@ const Camera = (() => {
     });
 
     return {
-        start(onDecode) {
-            handler = onDecode; wantOn = true; restarts = 0; locked = false;
+        isRunning,
+        // Camera đang chạy sẵn thì chỉ đổi người nhận kết quả, KHÔNG mở lại camera
+        start(h) {
+            handler = h; accepting = true; locked = false;
+            if (isRunning()) { scannerEl.dataset.hold = ""; return Promise.resolve(); }
+            wantOn = true; restarts = 0;
             return enqueue(startFlow);
         },
+        hold() { accepting = false; },                       // camera vẫn chạy, tạm không nhận kết quả
+        listen(h) { handler = h; locked = false; accepting = true; scannerEl.dataset.hold = ""; },
         restart() { if (wantOn) { restarts = 0; return enqueue(startFlow); } },
-        stop() { wantOn = false; resumeAfterVisible = false; return enqueue(stopNow); },
+        stop() { wantOn = false; accepting = false; resumeAfterVisible = false; return enqueue(stopNow); },
         async toggleTorch() {
             if (!torchFeature) return;
             try { torchOn = !torchOn; await torchFeature.apply(torchOn); $("btnTorch").classList.toggle("on", torchOn); }
@@ -571,7 +630,7 @@ const Camera = (() => {
 })();
 
 /* =====================================================================
- *  GIAO DIỆN
+ *  GIAO DIỆN & LOGIC
  * ===================================================================== */
 function flash(msg, type = "error", ms = 2500) {
     const box = $("statusBox");
@@ -586,17 +645,34 @@ function setHeader(icon, title, sub) {
     $("mainSub").textContent = sub;
 }
 
-/* ---------------- Bước 1 ---------------- */
-function startScan() {
-    Camera.start(currentStep === 1 ? processMssv : processChia);
+// Người nhận kết quả quét theo bước hiện tại
+function stepHandler() {
+    if (currentStep === 1) return processMssv;
+    return (text) => {
+        if (text.trim() === mssvValue) {          // vẫn đang đưa thẻ SV vào khung → bỏ qua, quét tiếp
+            flash("Đây là mã thẻ sinh viên. Hãy quét mã trên chìa khóa.");
+            return false;
+        }
+        return processChia(text);
+    };
 }
 
+function startScan() { Camera.start(stepHandler()); }
+
+/* ---------------- Bước 1 ---------------- */
 async function processMssv(value) {
-    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Sinh Viên!"); return; }
+    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Sinh Viên!"); return false; }
     mssvValue = value.trim();
 
-    await Camera.stop();
-    Camera.setState("idle");
+    // Camera đang chạy → GIỮ NGUYÊN luồng (không tắt/mở lại) để bước 2 không bị đen
+    const live = Camera.isRunning();
+    if (live) {
+        Camera.hold();
+        $("scanner").dataset.hold = "1";
+    } else {
+        await Camera.stop();
+        Camera.setState("idle");
+    }
 
     $("valMssv").textContent = mssvValue;
     $("statusIcon1").textContent = "✅";
@@ -627,7 +703,7 @@ async function processMssv(value) {
 
 /* ---------------- Bước 2 ---------------- */
 async function processChia(value) {
-    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Chìa Khóa!"); return; }
+    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Chìa Khóa!"); return false; }
     chiaValue = value.trim();
 
     await Camera.stop();
@@ -671,14 +747,17 @@ function sendDataToGAS() {
         .catch((error) => {
             if (myId !== requestId) return;
             console.error(error);
+            const reason = error && error.name === "AbortError" ? "quá thời gian chờ (20 giây)" : (error && error.message) || "không rõ";
             box.className = "status show error";
-            box.textContent = "❌ Lỗi kết nối Server! Vui lòng thử lại. ";
+            box.textContent = "❌ Lỗi kết nối Server! Vui lòng thử lại.";
+            const small = document.createElement("small");
+            small.textContent = "Chi tiết: " + reason;
+            box.appendChild(small);
             const retry = document.createElement("button");
             retry.type = "button";
             retry.className = "retry";
             retry.textContent = "Gửi lại";
             retry.onclick = sendDataToGAS;   // giữ nguyên dữ liệu đã quét, không phải quét lại
-            box.appendChild(document.createElement("br"));
             box.appendChild(retry);
         })
         .finally(() => clearTimeout(timer));
@@ -726,9 +805,40 @@ async function resetAll() {
     input.placeholder = "Nhập Mã Sinh Viên thủ công...";
 }
 
+/* ---------------- Đường lui: chụp ảnh bằng ứng dụng Camera của máy ----------------
+ * Không phụ thuộc luồng camera trong trình duyệt nên dùng được cả khi camera trên web bị đen. */
+function pickPhoto() {
+    $("fileIn").click();      // phải gọi ngay trong thao tác chạm của người dùng
+    Camera.stop();            // nhả camera để ứng dụng Camera của máy dùng được
+}
+
+$("fileIn").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    flash("⏳ Đang đọc mã từ ảnh...", "loading", 15000);
+    let reader = null;
+    try {
+        reader = new Html5Qrcode("reader", { verbose: false });
+        const text = await reader.scanFile(file, false);
+        $("statusBox").className = "status";
+        const r = await stepHandler()(text);
+        if (r === false) return;
+    } catch (err) {
+        dbg("scanFile lỗi: " + errName2(err));
+        flash("Không đọc được mã trong ảnh. Hãy chụp lại gần hơn, đủ sáng, hoặc nhập thủ công.");
+    } finally {
+        try { reader && reader.clear(); } catch (_) {}
+    }
+});
+function errName2(e) { return (e && (e.name || e.message || e)) + ""; }
+
 /* ---------------- Gắn sự kiện ---------------- */
 $("btnStart").addEventListener("click", startScan);
 $("btnRetryCam").addEventListener("click", startScan);
+$("btnResume").addEventListener("click", () => Camera.listen(stepHandler()));
+$("btnPhoto1").addEventListener("click", pickPhoto);
+$("btnPhoto2").addEventListener("click", pickPhoto);
 $("btnRestart").addEventListener("click", () => Camera.restart());
 $("btnTorch").addEventListener("click", () => Camera.toggleTorch());
 $("btnSend").addEventListener("click", submitManual);
