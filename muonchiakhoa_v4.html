@@ -115,10 +115,8 @@
         background: #070b14;
     }
     .scanner[data-state="hidden"] { display: none; }
-    /* Khi camera chạy: không bo góc + cắt nội dung quanh <video> (một số GPU Android hiển thị đen) */
     .scanner[data-state="scanning"], .scanner[data-state="loading"] { overflow: visible; border-radius: 0; }
 
-    /* Video do thư viện tạo ra. Không ép kích thước để vùng giải mã luôn khớp. */
     .scanner #reader {
         display: none;
         width: 100%;
@@ -128,8 +126,8 @@
     }
     .scanner[data-state="scanning"] #reader,
     .scanner[data-state="loading"] #reader { display: block; }
-    #reader video { display: block; max-width: 100%; }
-    #reader #qr-shaded-region { display: none !important; } /* dùng khung ngắm tự vẽ bên dưới */
+    #reader video { display: block; max-width: 100%; object-fit: cover; }
+    #reader #qr-shaded-region { display: none !important; }
 
     .frame {
         display: none;
@@ -191,7 +189,7 @@
     .manual input {
         flex: 1; min-width: 0;
         padding: 13px 14px;
-        font: inherit; font-size: 16px; /* >=16px để iOS không tự phóng to */
+        font: inherit; font-size: 16px;
         color: var(--text); background: var(--soft);
         border: 1.5px solid var(--line); border-radius: 14px; outline: none;
         transition: border-color .15s, box-shadow .15s;
@@ -309,10 +307,10 @@
         </div>
 
         <div class="zoom-bar" id="zoomBar" aria-label="Thu phóng"></div>
-        <div class="hint" id="scanHint">Chưa nhận được mã? Thử lùi điện thoại ra xa một chút (khoảng 20–30 cm) cho camera lấy nét, bật đèn, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh mã</button></div>
+        <div class="hint" id="scanHint">Chưa nhận được mã? Thử giữ khoảng cách 25–30cm để camera tự động lấy nét rõ nhất, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh mã</button></div>
 
         <div class="panel panel-idle">
-            <p id="idleText">Nhấn bên dưới để mở camera sau. Đừng đưa mã quá sát camera để máy kịp lấy nét.</p>
+            <p id="idleText">Nhấn bên dưới để mở camera. Hãy giữ khoảng cách 20–30 cm để máy lấy nét chuẩn nhất.</p>
             <button class="btn" id="btnStart" type="button">📷 Mở Camera Quét Thẻ</button>
             <button class="btn ghost" id="btnPhoto1" type="button">📸 Chụp ảnh mã (nếu camera lỗi)</button>
         </div>
@@ -366,7 +364,6 @@
 </main>
 
 <script>
-// CHỈ CẦN DÁN URL WEB APP CỦA GOOGLE APPS SCRIPT VÀO ĐÂY (HOÀN TOÀN BẢO MẬT)
 const GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbyBnFDTrextoqUJGi-n6z926OHSOucRs91IK02gmJt6j6hVqO905hcKP-swKnEo2D4bdg/exec";
 
 const $ = (id) => document.getElementById(id);
@@ -374,12 +371,11 @@ const $ = (id) => document.getElementById(id);
 let currentStep = 1;
 let mssvValue = "";
 let chiaValue = "";
-let requestId = 0;      // chống phản hồi "cũ" của lần gửi trước khi đã bấm làm lại
+let requestId = 0;
 let successTimer = null;
 
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-/* Chế độ chẩn đoán: mở trang với ?debug=1 để xem nhật ký camera ngay trên màn hình */
 const DEBUG = /[?&]debug=1/.test(location.search);
 const dbgLines = [];
 function dbg(msg) {
@@ -395,16 +391,15 @@ function dbg(msg) {
 if (DEBUG) dbg("UA: " + navigator.userAgent + " | secure=" + window.isSecureContext);
 
 /* =====================================================================
- *  CAMERA — một luồng duy nhất, giữ nguyên giữa bước 1 và 2 (không mở/đóng lại),
- *  có hàng đợi thao tác, tự phát hiện camera không ra hình và tự khôi phục
+ * CAMERA ENGINE - TỐI ƯU HÓA ĐẶC BIỆT CHO IPHONE (AUTO-DIGITAL-ZOOM & FOCUS)
  * ===================================================================== */
 const Camera = (() => {
     const scannerEl = $("scanner");
-    let scanner = null;          // đối tượng Html5Qrcode hiện tại
-    let wantOn = false;          // người dùng đang muốn bật camera
-    let accepting = false;       // có nhận kết quả quét hay không (camera vẫn chạy khi false)
+    let scanner = null;
+    let wantOn = false;
+    let accepting = false;
     let handler = null;
-    let locked = false;          // chặn callback bắn nhiều lần liên tiếp
+    let locked = false;
     let watchdog = null;
     let restarts = 0;
     let resumeAfterVisible = false;
@@ -415,8 +410,8 @@ const Camera = (() => {
 
     const MAX_AUTO_RESTARTS = 3;
     const START_TIMEOUT_MS = 10000;
-    const STALL_LIMIT_S = 6;     // số giây liên tục không có hình mới coi là treo
-    const HINT_MS = 8000;        // sau từng ấy ms chưa quét được thì gợi ý người dùng
+    const STALL_LIMIT_S = 6;
+    const HINT_MS = 8000;
 
     const errName = (e) => ((e && (e.name || e.message || e)) + "");
     const isDenied = (e) => /NotAllowed|Permission|denied/i.test(errName(e));
@@ -449,17 +444,17 @@ const Camera = (() => {
             try { if (s.isScanning) await withTimeout(s.stop(), 3000); } catch (e) {}
             try { s.clear(); } catch (e) {}
         }
-        releaseStreamOf(video);   // tắt hẳn luồng cũ, đèn camera tắt thật sự
+        releaseStreamOf(video);
     }
 
     function friendlyError(e) {
         const name = errName(e);
         if (/NotAllowed|Permission|denied/i.test(name))
-            return "Trình duyệt chưa được cấp quyền camera. Hãy cho phép camera cho trang này trong cài đặt trình duyệt.";
+            return "Trình duyệt chưa được cấp quyền camera. Hãy cho phép camera trong cài đặt.";
         if (/NotFound|DevicesNotFound/i.test(name))
-            return "Không tìm thấy camera trên thiết bị này.";
+            return "Không tìm thấy camera trên thiết bị.";
         if (/NotReadable|TrackStart|Could not start|Abort/i.test(name))
-            return "Camera đang bị ứng dụng hoặc tab khác chiếm dùng. Hãy đóng các tab khác của trang này rồi thử lại.";
+            return "Camera đang bị ứng dụng hoặc tab khác chiếm dùng. Hãy đóng các tab khác rồi thử lại.";
         if (/TIMEOUT/i.test(name))
             return "Camera phản hồi quá chậm. Hãy thử lại.";
         if (/LIB/i.test(name))
@@ -469,26 +464,20 @@ const Camera = (() => {
         return "Không thể mở camera. Hãy thử lại hoặc dùng ô nhập thủ công.";
     }
 
-    // Chỉ gọi khi các cấu hình thường đã thất bại. Dùng enumerateDevices (không mở luồng camera).
-    async function deviceCandidates() {
-        const out = [];
-        try {
-            const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId);
-            const back = devs.filter((d) => /back|rear|environment|sau|trasera/i.test(d.label || ""));
-            const rest = devs.filter((d) => back.indexOf(d) === -1).reverse();
-            back.concat(rest).forEach((d) => out.push({ deviceId: { exact: d.deviceId } }));
-        } catch (e) {}
-        return out;
-    }
-
     async function tryStart(videoConstraints) {
-        const s = new Html5Qrcode("reader", { verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+        // Tối ưu hóa bộ giải mã mã vạch Native nếu browser có hỗ trợ
+        const s = new Html5Qrcode("reader", { 
+            verbose: false, 
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true } 
+        });
         scanner = s;
         const config = {
-            fps: 10,
+            fps: IS_IOS ? 15 : 12, // Tăng FPS lên 15 cho iOS để bắt frame nét tốt hơn
             videoConstraints,
             qrbox: (w, h) => {
-                const size = Math.max(120, Math.floor(Math.min(w, h) * (IS_IOS ? 0.9 : 0.72)));
+                // Tối ưu hóa kích thước khung nhận diện cho iOS để có độ phân giải Canvas tối đa
+                const minDim = Math.min(w, h);
+                const size = Math.max(160, Math.floor(minDim * (IS_IOS ? 0.82 : 0.75)));
                 scannerEl.style.setProperty("--qr", size + "px");
                 return { width: size, height: size };
             }
@@ -497,7 +486,7 @@ const Camera = (() => {
             if (locked || !wantOn || !accepting) return;
             locked = true;
             Promise.resolve(handler && handler(text))
-                .then((r) => { if (r === false) locked = false; })   // handler từ chối → cho quét tiếp
+                .then((r) => { if (r === false) locked = false; })
                 .catch(() => { locked = false; });
         };
         try {
@@ -518,19 +507,24 @@ const Camera = (() => {
         setState("loading");
         const hadCamera = !!scanner;
         await stopNow();
-        if (hadCamera) await sleep(400);          // cho phần cứng camera kịp nhả hẳn trước khi mở lại
+        if (hadCamera) await sleep(400);
         if (!window.Html5Qrcode) { setState("error"); $("camErrText").textContent = friendlyError("LIB"); return; }
         if (!window.isSecureContext) { setState("error"); $("camErrText").textContent = friendlyError("insecure"); return; }
 
         locked = false;
-        let lastErr = null, extended = false;
-        // Thử cấu hình đơn giản nhất trước (giống bản gốc), rồi mới tới các cấu hình khác
+        let lastErr = null;
         const env = { facingMode: { ideal: "environment" } };
+        
+        // Bắt buộc ưu tiên FULL HD (1080p) trên iOS để có pixel mã QR cực kỳ chi tiết
         const list = IS_IOS
-            // iPhone: độ phân giải mặc định thấp (thường 640x480) khiến mã nhỏ/dày khó đọc → xin 1080p trước
-            ? [Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } }, env), env,
-               Object.assign({ width: { ideal: 1280 }, height: { ideal: 720 } }, env)]
+            ? [
+                Object.assign({ width: { exact: 1920 }, height: { exact: 1080 } }, env),
+                Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } }, env),
+                Object.assign({ width: { ideal: 1280 }, height: { ideal: 720 } }, env),
+                env
+              ]
             : [env, Object.assign({ width: { ideal: 1280 }, height: { ideal: 720 } }, env)];
+
         for (let i = 0; i < list.length; i++) {
             if (!wantOn) return;
             try {
@@ -538,20 +532,14 @@ const Camera = (() => {
                 const s = await tryStart(list[i]);
                 if (!wantOn) { await stopNow(); return; }
                 setState("scanning");
-                if (!accepting) scannerEl.dataset.hold = "1";   // đang chờ người dùng bấm nút ở bước 2
+                if (!accepting) scannerEl.dataset.hold = "1";
                 afterStarted(s);
                 return;
             } catch (e) {
                 lastErr = e;
                 dbg("start #" + i + " lỗi: " + errName(e));
-                if (isDenied(e)) break;               // bị từ chối quyền: thử tiếp vô ích
-                if (i === list.length - 1 && !extended) {
-                    extended = true;
-                    const more = await deviceCandidates();
-                    dbg("thêm " + more.length + " camera theo deviceId");
-                    more.forEach((c) => list.push(c));
-                }
-                await sleep(400);
+                if (isDenied(e)) break;
+                await sleep(300);
             }
         }
         setState("error");
@@ -562,7 +550,6 @@ const Camera = (() => {
         const video = currentVideo();
         const track = video && video.srcObject && video.srcObject.getVideoTracks && video.srcObject.getVideoTracks()[0];
 
-        // Hạn chế trình duyệt "chiếm" video (nút PiP/toàn màn hình của trình duyệt Xiaomi...)
         if (video) {
             try {
                 video.disablePictureInPicture = true;
@@ -576,19 +563,12 @@ const Camera = (() => {
             const tf = caps && caps.torchFeature && caps.torchFeature();
             if (tf && tf.isSupported()) { torchFeature = tf; $("btnTorch").hidden = false; }
         } catch (e) {}
-        setupZoom(s);
+
+        // Thiết lập Zoom & Tự động bật Auto-Zoom cho iOS giải quyết triệt để lỗi mờ
+        setupZoomAndAutoApply(s);
         armHint();
-        if (DEBUG && track && track.getCapabilities) {
-            try {
-                const c = track.getCapabilities();
-                dbg("caps: " + JSON.stringify({ zoom: c.zoom, focusDistance: c.focusDistance, focusMode: c.focusMode, w: c.width, h: c.height }));
-            } catch (e) {}
-            navigator.mediaDevices.enumerateDevices().then((d) =>
-                dbg("devices: " + d.filter((x) => x.kind === "videoinput").map((x) => x.label || "?").join(" | "))).catch(() => {});
-        }
 
         if (track) {
-            try { dbg("track " + JSON.stringify(track.getSettings()) + " muted=" + track.muted + " state=" + track.readyState); } catch (e) {}
             lastMuted = track.muted;
             track.addEventListener("ended", () => { if (scanner === s) recover("ended"); });
             track.addEventListener("mute", () => {
@@ -598,7 +578,6 @@ const Camera = (() => {
             track.addEventListener("unmute", () => { lastMuted = false; });
         }
 
-        // Đếm số khung hình thực sự được hiển thị
         frames = 0;
         const hasRVFC = !!(video && "requestVideoFrameCallback" in video);
         if (hasRVFC) {
@@ -611,47 +590,64 @@ const Camera = (() => {
         watchdog = setInterval(() => {
             if (!wantOn || scanner !== s || document.hidden) return;
             const v = currentVideo();
-            if (v && v.paused && v.readyState >= 2) { try { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {} }
+            if (v && v.paused && v.readyState >= 2) { try { v.play().catch(() => {}); } catch (e) {} }
             const noMeta = !v || !v.srcObject || v.videoWidth === 0 || v.readyState < 2;
             const t = v ? v.currentTime : -1;
-            // Chỉ coi là đứng hình khi CẢ HAI tín hiệu cùng không tiến (tránh báo nhầm)
             const moved = (hasRVFC && frames !== lastFrames) || t !== lastTime;
             lastFrames = frames; lastTime = t;
             still = (noMeta || !moved) ? still + 1 : 0;
-            if (DEBUG) dbg("w: size=" + (v ? v.videoWidth + "x" + v.videoHeight : "-") + " ready=" + (v ? v.readyState : "-") + " frames=" + frames + " t=" + t.toFixed(1) + " muted=" + lastMuted + " still=" + still);
             if (still >= STALL_LIMIT_S) { still = 0; recover(noMeta ? "no-frames" : "frozen"); }
         }, 1000);
     }
 
-    // Thanh zoom: iPhone đời mới có khoảng lấy nét gần nhất xa hơn nên cần lùi ra/phóng to mới nét
-    function setupZoom(s) {
+    // Tự động kích hoạt Zoom 1.8x - 2.0x trên iPhone để ép cự ly cầm máy sắc nét
+    function setupZoomAndAutoApply(s) {
         const bar = $("zoomBar");
         bar.innerHTML = ""; bar.classList.remove("show");
         try {
             const z = s.getRunningTrackCameraCapabilities().zoomFeature();
             if (!z || !z.isSupported()) return;
             const min = z.min(), max = z.max();
-            dbg("zoom " + min + "–" + max + " step " + z.step());
+            dbg("zoom capabilities: min=" + min + ", max=" + max);
+
             const vals = [];
-            [1, 2, 4].forEach((m) => {
-                const v = Number((min * m).toFixed(2));
-                if (v <= max + 1e-6 && vals.indexOf(v) === -1) vals.push(v);
+            [1, 1.8, 2.5, 4].forEach((m) => {
+                const v = Number((min * m).toFixed(1));
+                if (v <= max && vals.indexOf(v) === -1) vals.push(v);
             });
             if (vals.length < 2) return;
-            const cur = z.value() != null ? z.value() : min;
+
+            // Đặt mức zoom mục tiêu ban đầu (Ưu tiên 1.8x - 2.0x cho iOS)
+            const targetDefaultZoom = IS_IOS ? Math.min(2.0, max) : min;
+
             const buttons = vals.map((v) => {
                 const b = document.createElement("button");
                 b.type = "button";
-                b.textContent = Number(v.toFixed(1)) + "×";
+                b.textContent = v + "×";
                 b.onclick = () => {
-                    z.apply(v).then(() => { buttons.forEach((x) => x.classList.toggle("on", x === b)); armHint(); }).catch((e) => dbg("zoom lỗi: " + errName(e)));
+                    z.apply(v).then(() => { 
+                        buttons.forEach((x) => x.classList.toggle("on", x === b)); 
+                        armHint(); 
+                    }).catch((e) => dbg("zoom apply err: " + errName(e)));
                 };
                 bar.appendChild(b);
                 return b;
             });
-            let best = 0;
-            vals.forEach((v, i) => { if (Math.abs(v - cur) < Math.abs(vals[best] - cur)) best = i; });
-            buttons[best].classList.add("on");
+
+            // Tự động áp dụng Zoom ngay khi bật camera trên iOS
+            if (IS_IOS && targetDefaultZoom > min) {
+                z.apply(targetDefaultZoom).then(() => {
+                    dbg("Tự động áp dụng Zoom " + targetDefaultZoom + "x cho iOS thành công");
+                    let closestIdx = 0;
+                    vals.forEach((v, idx) => { if (Math.abs(v - targetDefaultZoom) < Math.abs(vals[closestIdx] - targetDefaultZoom)) closestIdx = idx; });
+                    buttons[closestIdx].classList.add("on");
+                }).catch(() => {
+                    buttons[0].classList.add("on");
+                });
+            } else {
+                buttons[0].classList.add("on");
+            }
+
             bar.classList.add("show");
         } catch (e) { dbg("zoom không hỗ trợ: " + errName(e)); }
     }
@@ -667,14 +663,11 @@ const Camera = (() => {
 
     function recover(reason) {
         if (!wantOn) return;
-        dbg("recover: " + reason + " (lần " + (restarts + 1) + ")");
         if (restarts >= MAX_AUTO_RESTARTS) {
             enqueue(async () => {
                 await stopNow();
                 setState("error");
-                $("camErrText").textContent = lastMuted
-                    ? "Camera đang bị ứng dụng hoặc tab khác chiếm dùng nên không ra hình. Hãy đóng các tab khác của trang này rồi bấm Thử lại."
-                    : "Camera không ra hình sau nhiều lần thử. Hãy bấm Thử lại, hoặc chụp ảnh mã / nhập thủ công.";
+                $("camErrText").textContent = "Camera không ra hình. Bấm Thử lại hoặc dùng tính năng Chụp ảnh / Nhập thủ công.";
             });
             return;
         }
@@ -682,7 +675,6 @@ const Camera = (() => {
         enqueue(startFlow);
     }
 
-    // Quay lại sau khi khóa màn hình / chuyển app: camera thường bị đen → tắt khi ẩn, bật lại khi hiện
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
             if (wantOn && scanner) { resumeAfterVisible = true; enqueue(stopNow); }
@@ -691,21 +683,16 @@ const Camera = (() => {
             if (wantOn) { restarts = 0; enqueue(startFlow); }
         }
     });
-    window.addEventListener("pagehide", () => { if (wantOn && scanner) { resumeAfterVisible = true; enqueue(stopNow); } });
-    window.addEventListener("pageshow", (e) => {
-        if (e.persisted && resumeAfterVisible && wantOn) { resumeAfterVisible = false; restarts = 0; enqueue(startFlow); }
-    });
 
     return {
         isRunning,
-        // Camera đang chạy sẵn thì chỉ đổi người nhận kết quả, KHÔNG mở lại camera
         start(h) {
             handler = h; accepting = true; locked = false;
             if (isRunning()) { scannerEl.dataset.hold = ""; armHint(); return Promise.resolve(); }
             wantOn = true; restarts = 0;
             return enqueue(startFlow);
         },
-        hold() { accepting = false; clearTimeout(hintTimer); $("scanHint").classList.remove("show"); },                       // camera vẫn chạy, tạm không nhận kết quả
+        hold() { accepting = false; clearTimeout(hintTimer); $("scanHint").classList.remove("show"); },
         listen(h) { handler = h; locked = false; accepting = true; scannerEl.dataset.hold = ""; armHint(); },
         restart() { if (wantOn) { restarts = 0; return enqueue(startFlow); } },
         stop() { wantOn = false; accepting = false; resumeAfterVisible = false; return enqueue(stopNow); },
@@ -719,7 +706,7 @@ const Camera = (() => {
 })();
 
 /* =====================================================================
- *  GIAO DIỆN & LOGIC
+ * GIAO DIỆN & LOGIC NGHIỆP VỤ
  * ===================================================================== */
 function flash(msg, type = "error", ms = 2500) {
     const box = $("statusBox");
@@ -734,11 +721,10 @@ function setHeader(icon, title, sub) {
     $("mainSub").textContent = sub;
 }
 
-// Người nhận kết quả quét theo bước hiện tại
 function stepHandler() {
     if (currentStep === 1) return processMssv;
     return (text) => {
-        if (text.trim() === mssvValue) {          // vẫn đang đưa thẻ SV vào khung → bỏ qua, quét tiếp
+        if (text.trim() === mssvValue) {
             flash("Đây là mã thẻ sinh viên. Hãy quét mã trên chìa khóa.");
             return false;
         }
@@ -753,7 +739,6 @@ async function processMssv(value) {
     if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Sinh Viên!"); return false; }
     mssvValue = value.trim();
 
-    // Camera đang chạy → GIỮ NGUYÊN luồng (không tắt/mở lại) để bước 2 không bị đen
     const live = Camera.isRunning();
     if (live) {
         Camera.hold();
@@ -779,13 +764,12 @@ async function processMssv(value) {
     $("valChia").textContent = "Sẵn sàng...";
     $("statusIcon2").textContent = "📷";
 
-    $("idleText").textContent = "Đã nhận MSSV. Quét mã trên chìa khóa để hoàn tất (đừng đưa quá sát camera).";
+    $("idleText").textContent = "Đã nhận MSSV. Quét mã trên chìa khóa để hoàn tất (giữ khoảng cách 25-30cm).";
     $("btnStart").textContent = "🔑 Quét Mã Chìa Khóa Bằng Camera";
 
     const input = $("manualInput");
     input.value = "";
     input.placeholder = "Nhập Mã Chìa Khóa thủ công...";
-    // Không tự focus: trên điện thoại sẽ bật bàn phím che mất khung camera
 
     if (navigator.vibrate) navigator.vibrate(100);
 }
@@ -807,7 +791,6 @@ async function processChia(value) {
 
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
-    // GỬI DỮ LIỆU SANG GAS (GAS SẼ LÀM TRUNG TRẠM ĐẨY VÀO APPSHEET)
     sendDataToGAS();
 }
 
@@ -846,7 +829,7 @@ function sendDataToGAS() {
             retry.type = "button";
             retry.className = "retry";
             retry.textContent = "Gửi lại";
-            retry.onclick = sendDataToGAS;   // giữ nguyên dữ liệu đã quét, không phải quét lại
+            retry.onclick = sendDataToGAS;
             box.appendChild(retry);
         })
         .finally(() => clearTimeout(timer));
@@ -859,7 +842,7 @@ function submitManual() {
 }
 
 async function resetAll() {
-    requestId++;                      // vô hiệu hóa mọi phản hồi server đang chờ
+    requestId++;
     clearTimeout(successTimer);
     await Camera.stop();
 
@@ -872,7 +855,7 @@ async function resetAll() {
     $("statusBox").className = "status";
 
     setHeader("🪪", "Mượn Chìa Khóa Tủ", "Quét camera hoặc nhập mã thủ công bên dưới");
-    $("idleText").textContent = "Nhấn bên dưới để mở camera sau. Đừng đưa mã quá sát camera để máy kịp lấy nét.";
+    $("idleText").textContent = "Nhấn bên dưới để mở camera. Hãy giữ khoảng cách 20–30 cm để máy lấy nét chuẩn nhất.";
     $("btnStart").textContent = "📷 Mở Camera Quét Thẻ";
 
     $("step1").className = "step active";
@@ -894,14 +877,12 @@ async function resetAll() {
     input.placeholder = "Nhập Mã Sinh Viên thủ công...";
 }
 
-/* ---------------- Đường lui: chụp ảnh bằng ứng dụng Camera của máy ----------------
- * Không phụ thuộc luồng camera trong trình duyệt nên dùng được cả khi camera trên web bị đen. */
+/* ---------------- Đường lui: Chụp ảnh trực tiếp từ ứng dụng Camera ---------------- */
 function pickPhoto() {
-    $("fileIn").click();      // phải gọi ngay trong thao tác chạm của người dùng
-    Camera.stop();            // nhả camera để ứng dụng Camera của máy dùng được
+    $("fileIn").click();
+    Camera.stop();
 }
 
-// Ảnh chụp từ iPhone rất lớn (12–48 MP) dễ vượt giới hạn canvas của Safari → thu nhỏ rồi mới giải mã
 async function shrinkImage(file, maxDim) {
     try {
         let bmp;
@@ -920,12 +901,12 @@ async function shrinkImage(file, maxDim) {
 
 async function decodePhoto(file) {
     let lastErr = null;
-    for (const maxDim of [1600, 1000, 0]) {          // 0 = ảnh gốc
+    for (const maxDim of [1600, 1000, 0]) {
         const f = maxDim ? await shrinkImage(file, maxDim) : file;
         if (!f) continue;
         const r = new Html5Qrcode("reader", { verbose: false });
         try { return await r.scanFile(f, false); }
-        catch (e) { lastErr = e; dbg("scanFile " + (maxDim || "gốc") + " lỗi"); }
+        catch (e) { lastErr = e; }
         finally { try { r.clear(); } catch (_) {} }
     }
     throw lastErr || new Error("Không đọc được mã");
@@ -942,11 +923,9 @@ $("fileIn").addEventListener("change", async (e) => {
         const r = await stepHandler()(text);
         if (r === false) return;
     } catch (err) {
-        dbg("scanFile lỗi: " + errName2(err));
         flash("Không đọc được mã trong ảnh. Hãy chụp lại gần hơn, đủ sáng, hoặc nhập thủ công.");
     }
 });
-function errName2(e) { return (e && (e.name || e.message || e)) + ""; }
 
 /* ---------------- Gắn sự kiện ---------------- */
 $("btnStart").addEventListener("click", startScan);
