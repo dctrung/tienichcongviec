@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Trạm Quét Chìa Khóa Thư Viện</title>
+
+<!-- Ghim phiên bản cố định; nếu CDN chính lỗi thì tự động dùng CDN dự phòng -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>window.Html5Qrcode || document.write('<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"><\/script>');</script>
+
+<style>
+    :root {
+        --bg: #eef2f7;
+        --card: #ffffff;
+        --text: #0f172a;
+        --sub: #64748b;
+        --line: #e2e8f0;
+        --soft: #f8fafc;
+        --primary: #2563eb;
+        --primary-soft: #eff6ff;
+        --primary-ring: #dbeafe;
+        --success: #16a34a;
+        --success-soft: #f0fdf4;
+        --warn-bg: #fef3c7;  --warn-tx: #b45309;
+        --ok-bg: #dcfce7;    --ok-tx: #15803d;
+        --err-bg: #fee2e2;   --err-tx: #b91c1c;
+        --shadow: 0 24px 40px -16px rgba(15, 23, 42, .18), 0 4px 10px -4px rgba(15, 23, 42, .06);
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0a101c;
+            --card: #121b2d;
+            --text: #e6edf7;
+            --sub: #93a3bb;
+            --line: #24324d;
+            --soft: #0e1626;
+            --primary-soft: #14264b;
+            --primary-ring: #1d3768;
+            --success-soft: #0f2a1d;
+            --warn-bg: #3a2a0b;  --warn-tx: #fbbf24;
+            --ok-bg: #0f2e1b;    --ok-tx: #4ade80;
+            --err-bg: #3b1214;   --err-tx: #fca5a5;
+            --shadow: 0 24px 40px -16px rgba(0, 0, 0, .6);
+        }
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+                 max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.45;
+    }
+    @media (min-height: 760px) and (min-width: 600px) { body { align-items: center; } }
+
+    .app {
+        width: 100%;
+        max-width: 440px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 20px 18px 18px;
+        box-shadow: var(--shadow);
+    }
+
+    /* ---------- Header ---------- */
+    .head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .head-icon {
+        flex: none;
+        width: 52px; height: 52px;
+        display: grid; place-items: center;
+        font-size: 26px;
+        border-radius: 16px;
+        background: var(--primary-soft);
+    }
+    .head h1 { margin: 0; font-size: 19px; font-weight: 750; letter-spacing: -.01em; }
+    .head p  { margin: 2px 0 0; font-size: 13px; color: var(--sub); }
+
+    /* ---------- Stepper ---------- */
+    .stepper { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+    .step { display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: 13px; font-weight: 600; transition: color .25s; }
+    .dot {
+        width: 28px; height: 28px; border-radius: 50%;
+        display: grid; place-items: center;
+        font-size: 13px; font-weight: 700;
+        background: var(--line); color: var(--sub);
+        transition: background .25s, color .25s, box-shadow .25s;
+    }
+    .step.active { color: var(--text); }
+    .step.active .dot { background: var(--primary); color: #fff; box-shadow: 0 0 0 4px var(--primary-ring); }
+    .step.done { color: var(--text); }
+    .step.done .dot { background: var(--success); color: #fff; }
+    .bar { flex: 1; height: 2px; background: var(--line); border-radius: 2px; position: relative; overflow: hidden; }
+    .bar::after { content: ""; position: absolute; inset: 0; background: var(--success); transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }
+    .bar.filled::after { transform: scaleX(1); }
+
+    /* ---------- Scanner ---------- */
+    .scanner {
+        position: relative;
+        isolation: isolate;
+        display: flex; align-items: center; justify-content: center;
+        min-height: 270px;
+        max-height: 58vh; max-height: 58dvh;
+        overflow: hidden;
+        border-radius: 22px;
+        background: #070b14;
+    }
+    .scanner[data-state="hidden"] { display: none; }
+
+    /* Video do thư viện tạo ra. Không ép kích thước để vùng giải mã luôn khớp. */
+    .scanner #reader {
+        display: none;
+        width: 100%;
+        border: 0 !important;
+        padding: 0 !important;
+        background: #000;
+    }
+    .scanner[data-state="scanning"] #reader,
+    .scanner[data-state="loading"] #reader { display: block; }
+    #reader video { display: block; max-width: 100%; }
+    #reader #qr-shaded-region { display: none !important; } /* dùng khung ngắm tự vẽ bên dưới */
+
+    .frame {
+        display: none;
+        position: absolute; z-index: 2; pointer-events: none;
+        top: 50%; left: 50%;
+        width: var(--qr, 70%); height: var(--qr, 70%);
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .42);
+        border-radius: 18px;
+    }
+    .scanner[data-state="scanning"] .frame { display: block; }
+    .frame i { position: absolute; width: 30px; height: 30px; border: 4px solid #fff; }
+    .frame i:nth-child(1) { top: 0; left: 0;  border-right: 0; border-bottom: 0; border-top-left-radius: 18px; }
+    .frame i:nth-child(2) { top: 0; right: 0; border-left: 0;  border-bottom: 0; border-top-right-radius: 18px; }
+    .frame i:nth-child(3) { bottom: 0; left: 0;  border-right: 0; border-top: 0; border-bottom-left-radius: 18px; }
+    .frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0;  border-top: 0; border-bottom-right-radius: 18px; }
+    .frame::after {
+        content: ""; position: absolute; left: 8px; right: 8px; top: 8px; height: 2px;
+        background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+        box-shadow: 0 0 10px #38bdf8;
+        animation: sweep 2.2s ease-in-out infinite alternate;
+    }
+    @keyframes sweep { to { transform: translateY(calc(var(--qr, 200px) - 20px)); } }
+
+    .cam-tools { display: none; position: absolute; z-index: 4; top: 10px; right: 10px; gap: 8px; }
+    .scanner[data-state="scanning"] .cam-tools { display: flex; }
+    .tool-btn {
+        width: 42px; height: 42px; border: 0; border-radius: 50%;
+        display: grid; place-items: center;
+        background: rgba(15, 23, 42, .62); color: #fff; font-size: 18px; cursor: pointer;
+        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .tool-btn[hidden] { display: none; }
+    .tool-btn.on { background: #f59e0b; }
+
+    .panel {
+        display: none;
+        position: absolute; inset: 0; z-index: 3;
+        flex-direction: column; align-items: center; justify-content: center;
+        gap: 14px; padding: 24px; text-align: center; color: #fff;
+    }
+    .panel p { margin: 0; font-size: 14px; line-height: 1.5; color: #cbd5e1; max-width: 300px; }
+    .scanner[data-state="idle"]    .panel-idle    { display: flex; }
+    .scanner[data-state="loading"] .panel-loading { display: flex; background: rgba(7, 11, 20, .78); }
+    .scanner[data-state="error"]   .panel-error   { display: flex; }
+
+    .spinner {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, .25); border-top-color: #fff;
+        animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn {
+        border: 0; cursor: pointer; font: inherit; font-weight: 650; font-size: 15px;
+        padding: 13px 24px; border-radius: 14px; color: #fff; background: var(--primary);
+        box-shadow: 0 6px 14px rgba(37, 99, 235, .32);
+        transition: transform .1s ease, opacity .2s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn.ghost { background: rgba(255, 255, 255, .14); box-shadow: none; }
+
+    /* ---------- Manual input ---------- */
+    .manual { display: flex; gap: 8px; margin-top: 14px; }
+    .manual input {
+        flex: 1; min-width: 0;
+        padding: 13px 14px;
+        font: inherit; font-size: 16px; /* >=16px để iOS không tự phóng to */
+        color: var(--text); background: var(--soft);
+        border: 1.5px solid var(--line); border-radius: 14px; outline: none;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .manual input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-ring); }
+    .btn-send {
+        border: 0; cursor: pointer; font: inherit; font-weight: 650; font-size: 15px;
+        padding: 0 20px; border-radius: 14px; color: #fff; background: #334155;
+    }
+    @media (prefers-color-scheme: dark) { .btn-send { background: #3b4a67; } }
+    .btn-send:active { transform: scale(.97); }
+
+    /* ---------- Status ---------- */
+    .status {
+        display: none; margin-top: 14px; padding: 12px 14px;
+        border-radius: 14px; font-size: 14px; font-weight: 600;
+    }
+    .status.show { display: block; }
+    .status.loading { background: var(--warn-bg); color: var(--warn-tx); }
+    .status.success { background: var(--ok-bg);   color: var(--ok-tx); }
+    .status.error   { background: var(--err-bg);  color: var(--err-tx); }
+    .status .retry {
+        display: inline-block; margin-top: 8px; padding: 8px 14px;
+        border: 0; border-radius: 10px; cursor: pointer;
+        font: inherit; font-weight: 650; font-size: 13px; color: #fff; background: var(--err-tx);
+    }
+    @media (prefers-color-scheme: dark) { .status .retry { color: #1a0a0a; } }
+
+    /* ---------- Results ---------- */
+    .results { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .result {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 12px 14px;
+        background: var(--soft); border: 1.5px solid var(--line); border-radius: 14px;
+        transition: border-color .25s, background .25s;
+    }
+    .result.active  { border-color: var(--primary); background: var(--primary-soft); }
+    .result.success { border-color: var(--success); background: var(--success-soft); }
+    .result-label { display: block; font-size: 12px; color: var(--sub); margin-bottom: 1px; }
+    .result-val { display: block; font-size: 16px; font-weight: 700; word-break: break-all; }
+    .result-ico { flex: none; font-size: 20px; }
+
+    .btn-reset {
+        display: block; margin: 14px auto 0; padding: 8px 14px;
+        background: transparent; border: 0; cursor: pointer;
+        color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline;
+    }
+
+    @media (max-width: 360px) {
+        .app { padding: 16px 14px; border-radius: 22px; }
+        .step .lbl { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .frame::after, .spinner { animation: none; }
+        * { transition: none !important; }
+    }
+</style>
+</head>
+<body>
+
+<main class="app">
+    <header class="head">
+        <div class="head-icon" id="headerIcon">🪪</div>
+        <div>
+            <h1 id="mainTitle">Mượn Chìa Khóa Tủ</h1>
+            <p id="mainSub">Quét camera hoặc nhập mã thủ công bên dưới</p>
+        </div>
+    </header>
+
+    <ol class="stepper" aria-label="Tiến trình">
+        <li class="step active" id="step1"><span class="dot">1</span><span class="lbl">Thẻ sinh viên</span></li>
+        <li class="bar" id="stepBar" aria-hidden="true"></li>
+        <li class="step" id="step2"><span class="dot">2</span><span class="lbl">Mã chìa khóa</span></li>
+    </ol>
+
+    <section class="scanner" id="scanner" data-state="idle">
+        <div id="reader"></div>
+
+        <div class="frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+        <div class="cam-tools">
+            <button class="tool-btn" id="btnTorch" type="button" title="Bật/tắt đèn flash" aria-label="Bật/tắt đèn flash" hidden>🔦</button>
+            <button class="tool-btn" id="btnRestart" type="button" title="Khởi động lại camera" aria-label="Khởi động lại camera">🔄</button>
+        </div>
+
+        <div class="panel panel-idle">
+            <p id="idleText">Nhấn bên dưới để mở camera sau và bắt đầu quét</p>
+            <button class="btn" id="btnStart" type="button">📷 Mở Camera Quét Thẻ</button>
+        </div>
+
+        <div class="panel panel-loading" aria-live="polite">
+            <div class="spinner"></div>
+            <p>Đang mở camera…</p>
+        </div>
+
+        <div class="panel panel-error">
+            <p id="camErrText">Không thể mở camera.</p>
+            <button class="btn" id="btnRetryCam" type="button">Thử lại</button>
+            <p style="font-size:13px">Hoặc dùng ô nhập thủ công bên dưới.</p>
+        </div>
+    </section>
+
+    <div class="manual" id="manualBox">
+        <input type="text" id="manualInput" placeholder="Nhập Mã Sinh Viên thủ công..."
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+        <button class="btn-send" id="btnSend" type="button">Gửi</button>
+    </div>
+
+    <div id="statusBox" class="status" role="status" aria-live="polite"></div>
+
+    <div class="results">
+        <div class="result active" id="cardMssv">
+            <div>
+                <span class="result-label">1. Thẻ Sinh Viên / Thư Viện</span>
+                <span class="result-val" id="valMssv">Chờ quét / nhập...</span>
+            </div>
+            <span class="result-ico" id="statusIcon1">⏳</span>
+        </div>
+        <div class="result" id="cardChia">
+            <div>
+                <span class="result-label">2. Mã Chìa Khóa</span>
+                <span class="result-val" id="valChia">Chờ hoàn thành B1...</span>
+            </div>
+            <span class="result-ico" id="statusIcon2">🔒</span>
+        </div>
+    </div>
+
+    <button class="btn-reset" id="btnReset" type="button">🔄 Nhập lại từ đầu</button>
+</main>
+
+<script>
+// CHỈ CẦN DÁN URL WEB APP CỦA GOOGLE APPS SCRIPT VÀO ĐÂY (HOÀN TOÀN BẢO MẬT)
+const GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbyBnFDTrextoqUJGi-n6z926OHSOucRs91IK02gmJt6j6hVqO905hcKP-swKnEo2D4bdg/exec";
+
+const $ = (id) => document.getElementById(id);
+
+let currentStep = 1;
+let mssvValue = "";
+let chiaValue = "";
+let requestId = 0;      // chống kết quả "cũ" của lần gửi trước khi đã bấm làm lại
+let successTimer = null;
+
+/* =====================================================================
+ *  CAMERA — bộ điều khiển có hàng đợi, tự phát hiện & tự khôi phục khi đen màn hình
+ * ===================================================================== */
+const Camera = (() => {
+    const scannerEl = $("scanner");
+    let scanner = null;        // đối tượng Html5Qrcode hiện tại
+    let wantOn = false;        // người dùng đang muốn bật camera
+    let handler = null;        // hàm xử lý khi quét được
+    let locked = false;        // chặn callback bắn nhiều lần liên tiếp
+    let watchdog = null;
+    let restarts = 0;
+    let resumeAfterVisible = false;
+    let queue = Promise.resolve();
+    let torchFeature = null;
+    let torchOn = false;
+
+    const MAX_AUTO_RESTARTS = 3;
+    const START_TIMEOUT_MS = 10000;
+
+    const setState = (s) => { scannerEl.dataset.state = s; };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const withTimeout = (p, ms) => Promise.race([
+        p,
+        new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), ms))
+    ]);
+    // Mọi thao tác bật/tắt đều xếp hàng, tránh start/stop chồng chéo gây treo camera
+    const enqueue = (fn) => (queue = queue.catch(() => {}).then(fn));
+
+    function currentVideo() { return document.querySelector("#reader video"); }
+
+    function releaseStreamOf(video) {
+        try {
+            const st = video && video.srcObject;
+            if (st && st.getTracks) st.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} });
+        } catch (e) {}
+    }
+
+    async function stopNow() {
+        clearInterval(watchdog); watchdog = null;
+        torchFeature = null; torchOn = false;
+        $("btnTorch").hidden = true;
+        $("btnTorch").classList.remove("on");
+
+        const s = scanner; scanner = null;
+        const video = currentVideo();
+        if (s) {
+            try { if (s.isScanning) await withTimeout(s.stop(), 3000); } catch (e) {}
+            try { s.clear(); } catch (e) {}
+        }
+        releaseStreamOf(video);   // đảm bảo đèn camera tắt hẳn, không giữ luồng cũ
+    }
+
+    function friendlyError(e) {
+        const name = (e && (e.name || e.message || e)) + "";
+        if (/NotAllowed|Permission|denied/i.test(name))
+            return "Trình duyệt chưa được cấp quyền camera. Hãy cho phép camera cho trang này trong cài đặt trình duyệt.";
+        if (/NotFound|DevicesNotFound/i.test(name))
+            return "Không tìm thấy camera trên thiết bị này.";
+        if (/NotReadable|TrackStart|Could not start|Abort/i.test(name))
+            return "Camera đang bị ứng dụng khác chiếm dùng. Hãy đóng ứng dụng đó rồi thử lại.";
+        if (/TIMEOUT/i.test(name))
+            return "Camera phản hồi quá chậm. Hãy thử lại.";
+        if (/LIB/i.test(name))
+            return "Không tải được thư viện quét mã. Kiểm tra mạng rồi tải lại trang.";
+        if (/insecure|secure/i.test(name))
+            return "Camera chỉ hoạt động khi trang chạy trên HTTPS.";
+        return "Không thể mở camera. Hãy thử lại hoặc dùng ô nhập thủ công.";
+    }
+
+    async function listCandidates() {
+        // Thứ tự thử: camera sau (độ phân giải vừa phải) → camera sau (mặc định) → từng thiết bị cụ thể
+        const list = [
+            { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+            { facingMode: { ideal: "environment" } }
+        ];
+        try {
+            const cams = await Html5Qrcode.getCameras();
+            if (cams && cams.length) {
+                const back = cams.filter((c) => /back|rear|environment|sau|trasera|arrière/i.test(c.label || ""));
+                const ordered = back.concat(cams.filter((c) => back.indexOf(c) === -1).reverse());
+                ordered.forEach((c) => list.push({ deviceId: { exact: c.id } }));
+            }
+        } catch (e) {}
+        return list;
+    }
+
+    async function tryStart(videoConstraints) {
+        const s = new Html5Qrcode("reader", { verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+        scanner = s;
+        const config = {
+            fps: 10,
+            videoConstraints,
+            qrbox: (w, h) => {
+                const size = Math.max(120, Math.floor(Math.min(w, h) * 0.72));
+                scannerEl.style.setProperty("--qr", size + "px");
+                return { width: size, height: size };
+            }
+        };
+        const onOk = (text) => {
+            if (locked || !wantOn) return;
+            locked = true;
+            Promise.resolve(handler && handler(text)).catch(() => {});
+        };
+        try {
+            await withTimeout(s.start({ facingMode: "environment" }, config, onOk, () => {}), START_TIMEOUT_MS);
+        } catch (e) {
+            // start bị treo/lỗi: dọn sạch để lần thử sau bắt đầu từ trạng thái sạch
+            const v = currentVideo();
+            try { if (s.isScanning) await s.stop(); } catch (_) {}
+            try { s.clear(); } catch (_) {}
+            releaseStreamOf(v);
+            if (scanner === s) scanner = null;
+            throw e;
+        }
+        return s;
+    }
+
+    async function startFlow() {
+        if (!wantOn) return;
+        setState("loading");
+        await stopNow();
+        if (!window.Html5Qrcode) { setState("error"); $("camErrText").textContent = friendlyError("LIB"); return; }
+        if (!window.isSecureContext) { setState("error"); $("camErrText").textContent = friendlyError("insecure"); return; }
+
+        locked = false;
+        let lastErr = null;
+        const candidates = await listCandidates();
+
+        for (const vc of candidates) {
+            if (!wantOn) return;
+            try {
+                const s = await tryStart(vc);
+                if (!wantOn) { await stopNow(); return; }
+                setState("scanning");
+                afterStarted(s);
+                return;
+            } catch (e) {
+                lastErr = e;
+                // Bị từ chối quyền thì thử cấu hình khác cũng vô ích
+                if (/NotAllowed|Permission|denied/i.test((e && (e.name || e.message || e)) + "")) break;
+                await sleep(250);
+            }
+        }
+        setState("error");
+        $("camErrText").textContent = friendlyError(lastErr);
+    }
+
+    function afterStarted(s) {
+        // Đèn flash (nếu thiết bị hỗ trợ)
+        try {
+            const caps = s.getRunningTrackCameraCapabilities();
+            const tf = caps && caps.torchFeature && caps.torchFeature();
+            if (tf && tf.isSupported()) { torchFeature = tf; $("btnTorch").hidden = false; }
+        } catch (e) {}
+
+        // Theo dõi track: bị ngắt/đứng hình thì tự khởi động lại
+        const video = currentVideo();
+        const track = video && video.srcObject && video.srcObject.getVideoTracks && video.srcObject.getVideoTracks()[0];
+        if (track) {
+            track.addEventListener("ended", () => { if (scanner === s) recover("ended"); });
+            track.addEventListener("mute", () => {
+                setTimeout(() => { if (scanner === s && track.muted) recover("muted"); }, 2500);
+            });
+        }
+
+        // Watchdog: kiểm tra mỗi giây xem hình có thực sự đang chạy không
+        let bad = 0, lastTime = -1;
+        clearInterval(watchdog);
+        watchdog = setInterval(() => {
+            if (!wantOn || scanner !== s || document.hidden) return;
+            const v = currentVideo();
+            if (v && v.paused && v.readyState >= 2) v.play().catch(() => {});
+            const t = v ? v.currentTime : -1;
+            const dead = !v || !v.srcObject || v.readyState < 2 || v.videoWidth === 0;
+            const frozen = !dead && t === lastTime;
+            lastTime = t;
+            bad = (dead || frozen) ? bad + 1 : 0;
+            if (bad >= 4) { bad = 0; recover("watchdog"); }
+        }, 1000);
+    }
+
+    function recover(reason) {
+        if (!wantOn) return;
+        if (restarts >= MAX_AUTO_RESTARTS) {
+            enqueue(async () => {
+                await stopNow();
+                setState("error");
+                $("camErrText").textContent = "Camera bị treo nhiều lần. Hãy thử lại, hoặc dùng ô nhập thủ công.";
+            });
+            return;
+        }
+        restarts++;
+        console.warn("[Camera] tự khôi phục:", reason, "lần", restarts);
+        enqueue(startFlow);
+    }
+
+    // Quay lại tab/ứng dụng sau khi khóa màn hình hoặc chuyển app → camera thường bị đen: bật lại
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            if (wantOn && scanner) {
+                resumeAfterVisible = true;
+                enqueue(stopNow);
+            }
+        } else if (resumeAfterVisible) {
+            resumeAfterVisible = false;
+            if (wantOn) { restarts = 0; enqueue(startFlow); }
+        }
+    });
+    window.addEventListener("pagehide", () => { if (wantOn && scanner) { resumeAfterVisible = true; enqueue(stopNow); } });
+    window.addEventListener("pageshow", (e) => {
+        if (e.persisted && resumeAfterVisible && wantOn) { resumeAfterVisible = false; restarts = 0; enqueue(startFlow); }
+    });
+
+    return {
+        start(onDecode) {
+            handler = onDecode; wantOn = true; restarts = 0; locked = false;
+            return enqueue(startFlow);
+        },
+        restart() { if (wantOn) { restarts = 0; return enqueue(startFlow); } },
+        stop() { wantOn = false; resumeAfterVisible = false; return enqueue(stopNow); },
+        async toggleTorch() {
+            if (!torchFeature) return;
+            try { torchOn = !torchOn; await torchFeature.apply(torchOn); $("btnTorch").classList.toggle("on", torchOn); }
+            catch (e) { torchOn = false; $("btnTorch").classList.remove("on"); }
+        },
+        setState
+    };
+})();
+
+/* =====================================================================
+ *  GIAO DIỆN
+ * ===================================================================== */
+function flash(msg, type = "error", ms = 2500) {
+    const box = $("statusBox");
+    box.className = "status show " + type;
+    box.textContent = msg;
+    setTimeout(() => { if (box.textContent === msg) box.className = "status"; }, ms);
+}
+
+function setHeader(icon, title, sub) {
+    $("headerIcon").textContent = icon;
+    $("mainTitle").textContent = title;
+    $("mainSub").textContent = sub;
+}
+
+/* ---------------- Bước 1 ---------------- */
+function startScan() {
+    Camera.start(currentStep === 1 ? processMssv : processChia);
+}
+
+async function processMssv(value) {
+    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Sinh Viên!"); return; }
+    mssvValue = value.trim();
+
+    await Camera.stop();
+    Camera.setState("idle");
+
+    $("valMssv").textContent = mssvValue;
+    $("statusIcon1").textContent = "✅";
+    $("cardMssv").className = "result success";
+
+    currentStep = 2;
+    $("step1").className = "step done";
+    $("step1").querySelector(".dot").textContent = "✓";
+    $("stepBar").classList.add("filled");
+    $("step2").className = "step active";
+
+    setHeader("🔑", "Mã Chìa Khóa", "Đã nhận MSSV. Mở camera quét hoặc nhập tay mã chìa.");
+
+    $("cardChia").className = "result active";
+    $("valChia").textContent = "Sẵn sàng...";
+    $("statusIcon2").textContent = "📷";
+
+    $("idleText").textContent = "Đã nhận MSSV. Quét mã trên chìa khóa để hoàn tất.";
+    $("btnStart").textContent = "🔑 Quét Mã Chìa Khóa Bằng Camera";
+
+    const input = $("manualInput");
+    input.value = "";
+    input.placeholder = "Nhập Mã Chìa Khóa thủ công...";
+    // Không tự focus: trên điện thoại sẽ bật bàn phím che mất khung camera
+
+    if (navigator.vibrate) navigator.vibrate(100);
+}
+
+/* ---------------- Bước 2 ---------------- */
+async function processChia(value) {
+    if (!value || !value.trim()) { flash("Vui lòng nhập hoặc quét Mã Chìa Khóa!"); return; }
+    chiaValue = value.trim();
+
+    await Camera.stop();
+    Camera.setState("hidden");
+    $("manualBox").style.display = "none";
+
+    $("valChia").textContent = chiaValue;
+    $("statusIcon2").textContent = "✅";
+    $("cardChia").className = "result success";
+    $("step2").className = "step done";
+    $("step2").querySelector(".dot").textContent = "✓";
+
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+    // GỬI DỮ LIỆU SANG GAS (GAS SẼ LÀM TRUNG TRẠM ĐẨY VÀO APPSHEET)
+    sendDataToGAS();
+}
+
+function sendDataToGAS() {
+    const myId = ++requestId;
+    const box = $("statusBox");
+    box.className = "status show loading";
+    box.textContent = "⏳ Đang kết nối Server ghi nhận dữ liệu...";
+
+    const requestUrl = `${GAS_BACKEND_URL}?mssv=${encodeURIComponent(mssvValue)}&chia=${encodeURIComponent(chiaValue)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+
+    fetch(requestUrl, { signal: ctrl.signal })
+        .then((response) => response.json())
+        .then((data) => {
+            if (myId !== requestId) return;
+            if (data.status === "SUCCESS") {
+                box.className = "status show success";
+                box.textContent = "🎉 Mượn chìa thành công! Đang làm mới...";
+                successTimer = setTimeout(resetAll, 2500);
+            } else {
+                throw new Error(data.message || "Lỗi lưu dữ liệu từ Server");
+            }
+        })
+        .catch((error) => {
+            if (myId !== requestId) return;
+            console.error(error);
+            box.className = "status show error";
+            box.textContent = "❌ Lỗi kết nối Server! Vui lòng thử lại. ";
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.className = "retry";
+            retry.textContent = "Gửi lại";
+            retry.onclick = sendDataToGAS;   // giữ nguyên dữ liệu đã quét, không phải quét lại
+            box.appendChild(document.createElement("br"));
+            box.appendChild(retry);
+        })
+        .finally(() => clearTimeout(timer));
+}
+
+function submitManual() {
+    const val = $("manualInput").value;
+    if (currentStep === 1) processMssv(val);
+    else if (currentStep === 2) processChia(val);
+}
+
+async function resetAll() {
+    requestId++;                      // vô hiệu hóa mọi phản hồi server đang chờ
+    clearTimeout(successTimer);
+    await Camera.stop();
+
+    currentStep = 1;
+    mssvValue = "";
+    chiaValue = "";
+
+    Camera.setState("idle");
+    $("manualBox").style.display = "flex";
+    $("statusBox").className = "status";
+
+    setHeader("🪪", "Mượn Chìa Khóa Tủ", "Quét camera hoặc nhập mã thủ công bên dưới");
+    $("idleText").textContent = "Nhấn bên dưới để mở camera sau và bắt đầu quét";
+    $("btnStart").textContent = "📷 Mở Camera Quét Thẻ";
+
+    $("step1").className = "step active";
+    $("step1").querySelector(".dot").textContent = "1";
+    $("stepBar").classList.remove("filled");
+    $("step2").className = "step";
+    $("step2").querySelector(".dot").textContent = "2";
+
+    $("cardMssv").className = "result active";
+    $("valMssv").textContent = "Chờ quét / nhập...";
+    $("statusIcon1").textContent = "⏳";
+
+    $("cardChia").className = "result";
+    $("valChia").textContent = "Chờ hoàn thành B1...";
+    $("statusIcon2").textContent = "🔒";
+
+    const input = $("manualInput");
+    input.value = "";
+    input.placeholder = "Nhập Mã Sinh Viên thủ công...";
+}
+
+/* ---------------- Gắn sự kiện ---------------- */
+$("btnStart").addEventListener("click", startScan);
+$("btnRetryCam").addEventListener("click", startScan);
+$("btnRestart").addEventListener("click", () => Camera.restart());
+$("btnTorch").addEventListener("click", () => Camera.toggleTorch());
+$("btnSend").addEventListener("click", submitManual);
+$("btnReset").addEventListener("click", resetAll);
+$("manualInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitManual(); });
+</script>
+</body>
+</html>
