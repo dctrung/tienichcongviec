@@ -6,7 +6,9 @@
 <meta name="theme-color" content="#2563eb">
 <title>Trạm Quét Chìa Khóa Thư Viện</title>
 
-<!-- Engine jsQR xử lý mảng điểm ảnh cực tốt -->
+<!-- ZXing JS: Thư viện hàng đầu quét cả Mã QR (2D) lẫn Mã Vạch (1D Code 128, Code 39...) -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<!-- jsQR: Engine hỗ trợ quét Mã QR siêu nhẹ -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
 <style>
@@ -129,7 +131,7 @@
         display: none;
         position: absolute; z-index: 2; pointer-events: none;
         top: 50%; left: 50%;
-        width: 200px; height: 200px;
+        width: 220px; height: 200px;
         transform: translate(-50%, -50%);
         border-radius: 18px;
         box-shadow: 0 0 0 4000px rgba(7, 11, 20, 0.45);
@@ -287,10 +289,10 @@
             <button class="tool-btn" id="btnRestart" type="button" title="Khởi động lại camera" aria-label="Khởi động lại camera">🔄</button>
         </div>
 
-        <div class="hint" id="scanHint">Giữ điện thoại cách mã 20–25cm để camera tự lấy nét rõ nhất, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh</button></div>
+        <div class="hint" id="scanHint">Giữ điện thoại cách mã 20–25cm để tự động lấy nét chuẩn nhất, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh</button></div>
 
         <div class="panel panel-idle">
-            <p id="idleText">Căn mã QR trên thẻ/chìa khóa vào chính giữa ô vuông. Giữ khoảng cách 20-25cm để lấy nét.</p>
+            <p id="idleText">Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 20-25cm để máy lấy nét chuẩn.</p>
             <button class="btn" id="btnStart" type="button">📷 Mở Camera Quét Thẻ</button>
             <button class="btn ghost" id="btnPhoto1" type="button">📸 Chụp ảnh mã (nếu camera lỗi)</button>
         </div>
@@ -324,7 +326,7 @@
     <div class="results">
         <div class="result active" id="cardMssv">
             <div>
-                <span class="result-label">1. Thẻ Sinh Viên / Thư Viện</span>
+                <span class="result-label">1. Thẻ Sinh Viên (Mã QR / Mã vạch)</span>
                 <span class="result-val" id="valMssv">Chờ quét / nhập...</span>
             </div>
             <span class="result-ico" id="statusIcon1">⏳</span>
@@ -367,32 +369,47 @@ function dbg(msg) {
 }
 
 /* =====================================================================
- * ENGINE CAMERA DÀNH CHO CẢ IPHONE & SAMSUNG / ANDROID
- * (Auto-Hardware Zoom + Continuous Focus Lock + Contrast Boost Canvas)
+ * ENGINE CAMERA HYBRID MULTI-FORMAT (ĐỌC CẢ MÃ QR VÀ MÃ VẠCH 1D)
+ * Tối ưu hóa đặc biệt cho Samsung (AF Pulse & Pixel Binarization) & iPhone
  * ===================================================================== */
 const Camera = (() => {
     const scannerEl = $("scanner");
     const videoEl = $("camVideo");
     let stream = null;
     let animFrameId = null;
+    let focusPulseTimer = null;
     let wantOn = false;
     let accepting = false;
     let handler = null;
     let locked = false;
     let nativeDetector = null;
+    let zxingReader = null;
+    
     let cropCanvas = document.createElement("canvas");
     let cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
+    let binCanvas = document.createElement("canvas");
+    let binCtx = binCanvas.getContext("2d", { willReadFrequently: true });
+    
     let track = null;
 
-    // Kiểm tra và khởi tạo Native BarcodeDetector (Hỗ trợ iOS 17+ & Android Chrome)
+    // Khởi tạo ZXing MultiFormat Reader cho JS Fallback
+    if (window.ZXing) {
+        try {
+            zxingReader = new ZXing.BrowserMultiFormatReader();
+            dbg("Đã khởi tạo ZXing MultiFormat Engine (Mã QR & Mã vạch 1D)!");
+        } catch (e) { dbg("Lỗi khởi tạo ZXing: " + e); }
+    }
+
+    // Khởi tạo Native BarcodeDetector (Quét cả QR Code & Mã vạch 1D: Code128, Code39...)
     async function initNativeDetector() {
         if ("BarcodeDetector" in window) {
             try {
-                const formats = await BarcodeDetector.getSupportedFormats();
-                if (formats.includes("qr_code")) {
-                    nativeDetector = new BarcodeDetector({ formats: ["qr_code"] });
-                    dbg("Đã kích hoạt Native BarcodeDetector Engine!");
-                }
+                const formats = [
+                    "qr_code", "code_128", "code_39", "code_93", 
+                    "ean_13", "ean_8", "upc_a", "upc_e", "codabar", "itf"
+                ];
+                nativeDetector = new BarcodeDetector({ formats });
+                dbg("Đã kích hoạt Native BarcodeDetector Engine!");
             } catch (e) { nativeDetector = null; }
         }
     }
@@ -404,6 +421,8 @@ const Camera = (() => {
         wantOn = false; accepting = false; locked = false;
         if (animFrameId) cancelAnimationFrame(animFrameId);
         animFrameId = null;
+        clearInterval(focusPulseTimer);
+        focusPulseTimer = null;
 
         if (stream) {
             stream.getTracks().forEach(t => t.stop());
@@ -426,7 +445,6 @@ const Camera = (() => {
         wantOn = true; accepting = true;
 
         try {
-            // Yêu cầu luồng Video Full HD + Khóa nét liên tục cho Android / Samsung
             const constraints = {
                 video: {
                     facingMode: { ideal: "environment" },
@@ -446,29 +464,34 @@ const Camera = (() => {
 
             track = stream.getVideoTracks()[0];
             
-            // XỬ LÝ TỐI ƯU CỰC KỲ QUAN TRỌNG CHO SAMSUNG & IPHONE:
             if (track && track.getCapabilities) {
                 const caps = track.getCapabilities();
                 
-                // 1. Kiểm tra Đèn Flash
                 if (caps.torch) $("btnTorch").hidden = false;
 
-                // 2. Tự động áp dụng Hardware Zoom (1.8x – 2.0x) giúp Samsung lấy nét từ khoảng cách xa (25cm)
+                // Tự động kích hoạt Hardware Zoom 1.8x - 2.0x ép cự ly cầm máy 20-25cm sắc nét
                 if (caps.zoom) {
                     const minZ = caps.zoom.min || 1;
                     const maxZ = caps.zoom.max || 1;
                     const targetZoom = Math.min(Math.max(minZ, 1.8), maxZ);
                     try {
                         await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
-                        dbg("Đã áp dụng Auto-Hardware Zoom " + targetZoom + "x thành công!");
-                    } catch (e) { dbg("Lỗi áp dụng Zoom phần cứng: " + e); }
+                        dbg("Đã áp dụng Auto-Zoom phần cứng " + targetZoom + "x");
+                    } catch (e) {}
                 }
             }
+
+            // LIỀU THUỐC ĐẶC TRỊ SAMSUNG: Mồi xung kích hoạt Auto-Focus motor liên tục mỗi 2.5 giây
+            clearInterval(focusPulseTimer);
+            focusPulseTimer = setInterval(() => {
+                if (wantOn && track && track.applyConstraints) {
+                    track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+                }
+            }, 2500);
 
             setState("scanning");
             if (!accepting) scannerEl.dataset.hold = "1";
 
-            // Bắt đầu vòng lặp quét giải mã
             scanLoop();
 
         } catch (err) {
@@ -482,7 +505,7 @@ const Camera = (() => {
         if (!wantOn) return;
 
         if (accepting && !locked && videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-            // LUỒNG 1: Sử dụng Native Vision API (Rất nhanh trên cả iOS & Android Chrome)
+            // LUỒNG 1: Native BarcodeDetector (Tối ưu phần cứng cho iOS & Android MLKit)
             if (nativeDetector) {
                 nativeDetector.detect(videoEl)
                     .then(barcodes => {
@@ -494,7 +517,6 @@ const Camera = (() => {
                     })
                     .catch(() => fallbackCropScan());
             } else {
-                // LUỒNG 2: Tight Center-Crop HD + Contrast Boost (Dành cho máy rơi vào jsQR)
                 fallbackCropScan();
             }
         }
@@ -502,36 +524,80 @@ const Camera = (() => {
         animFrameId = requestAnimationFrame(scanLoop);
     }
 
-    // Cắt 35% vùng trung tâm + Tăng tương phản triệt tiêu lóa chói trên chìa khóa & thẻ sinh viên
-    function fallbackCropScan() {
-        if (!window.jsQR || locked || !accepting) return;
+    // Cắt 35% vùng trung tâm + Nhị phân hóa điểm ảnh (Binarization) đặc trị cho Samsung
+    async function fallbackCropScan() {
+        if (locked || !accepting) return;
 
         const vw = videoEl.videoWidth;
         const vh = videoEl.videoHeight;
         if (!vw || !vh) return;
 
-        // Cắt siết chặt 35% chính giữa màn hình (Phóng đại mã QR nhỏ lên 2.8 lần)
-        const cropSize = Math.floor(Math.min(vw, vh) * 0.35);
-        const sx = Math.floor((vw - cropSize) / 2);
-        const sy = Math.floor((vh - cropSize) / 2);
+        const cropW = Math.floor(vw * 0.45);
+        const cropH = Math.floor(vh * 0.35);
+        const sx = Math.floor((vw - cropW) / 2);
+        const sy = Math.floor((vh - cropH) / 2);
 
-        cropCanvas.width = cropSize;
-        cropCanvas.height = cropSize;
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
 
-        // ÁP DỤNG BỘ LỌC ĐỘ TƯƠNG PHẢN (Triệt tiêu vết lóa bóng trên thẻ nhựa/chìa khóa kim loại)
-        cropCtx.filter = "contrast(140%) brightness(95%)";
-        cropCtx.drawImage(videoEl, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
-        
-        const imgData = cropCtx.getImageData(0, 0, cropSize, cropSize);
+        cropCtx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
 
-        // Đưa mảng điểm ảnh đã xử lý nét vào jsQR
-        const code = jsQR(imgData.data, imgData.width, imgData.height, {
-            inversionAttempts: "dontInvert"
-        });
-
-        if (code && code.data) {
-            onSuccess(code.data);
+        // PASS 1: Thử giải mã qua jsQR (Dành cho mã QR)
+        if (window.jsQR) {
+            const imgData = cropCtx.getImageData(0, 0, cropW, cropH);
+            const qrCode = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+            if (qrCode && qrCode.data) {
+                onSuccess(qrCode.data);
+                return;
+            }
         }
+
+        // PASS 2: Thử giải mã qua ZXing trên Canvas gốc (Quét cả Mã QR & Mã Vạch 1D)
+        if (zxingReader) {
+            try {
+                const res = await zxingReader.decodeFromCanvas(cropCanvas);
+                if (res && res.getText()) {
+                    onSuccess(res.getText());
+                    return;
+                }
+            } catch (e) {}
+        }
+
+        // PASS 3: ĐẶC TRỊ CHO SAMSUNG MỜ NÉT / LÓA - Nhị phân hóa (Black & White Thresholding)
+        applyBinarization(cropCanvas, binCanvas);
+
+        if (zxingReader) {
+            try {
+                const resBin = await zxingReader.decodeFromCanvas(binCanvas);
+                if (resBin && resBin.getText()) {
+                    onSuccess(resBin.getText());
+                    return;
+                }
+            } catch (e) {}
+        }
+    }
+
+    // Thuật toán chuyển ảnh xám mờ thành Trắng/Đen tương phản tuyệt đối
+    function applyBinarization(srcCanvas, destCanvas) {
+        const w = srcCanvas.width;
+        const h = srcCanvas.height;
+        destCanvas.width = w;
+        destCanvas.height = h;
+
+        const srcData = cropCtx.getImageData(0, 0, w, h);
+        const d = srcData.data;
+
+        for (let i = 0; i < d.length; i += 4) {
+            // Tính độ sáng Grayscale
+            const v = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+            // Khóa ngưỡng tương phản (Thresholding)
+            const bw = v > 120 ? 255 : 0;
+            d[i] = bw;
+            d[i+1] = bw;
+            d[i+2] = bw;
+        }
+
+        binCtx.putImageData(srcData, 0, 0);
     }
 
     function onSuccess(text) {
@@ -618,7 +684,7 @@ async function processMssv(value) {
     $("valChia").textContent = "Sẵn sàng...";
     $("statusIcon2").textContent = "📷";
 
-    $("idleText").textContent = "Căn mã QR nhỏ trên chìa khóa vào đúng ô vuông. Giữ khoảng cách 20-25cm.";
+    $("idleText").textContent = "Căn mã QR trên chìa khóa vào giữa khung. Giữ khoảng cách 20-25cm.";
     $("btnStart").textContent = "🔑 Quét Mã Chìa Khóa Bằng Camera";
 
     const input = $("manualInput");
@@ -704,7 +770,7 @@ async function resetAll() {
     $("statusBox").className = "status";
 
     setHeader("🪪", "Mượn Chìa Khóa Tủ", "Quét camera hoặc nhập mã thủ công bên dưới");
-    $("idleText").textContent = "Căn mã QR trên thẻ/chìa khóa vào chính giữa ô vuông. Giữ khoảng cách 20-25cm.";
+    $("idleText").textContent = "Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 20-25cm để máy lấy nét chuẩn.";
     $("btnStart").textContent = "📷 Mở Camera Quét Thẻ";
 
     $("step1").className = "step active";
@@ -745,17 +811,33 @@ $("fileIn").addEventListener("change", async (e) => {
         canvas.height = bmp.height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(bmp, 0, 0);
-        const imgData = ctx.getImageData(0, 0, bmp.width, bmp.height);
 
-        const code = jsQR(imgData.data, imgData.width, imgData.height);
-        if (code && code.data) {
+        let decodedText = null;
+
+        // Ưu tiên ZXing quét ảnh (Hỗ trợ cả Mã Vạch & QR)
+        if (window.ZXing) {
+            try {
+                const reader = new ZXing.BrowserMultiFormatReader();
+                const res = await reader.decodeFromCanvas(canvas);
+                if (res) decodedText = res.getText();
+            } catch (err) {}
+        }
+
+        // Fallback jsQR
+        if (!decodedText && window.jsQR) {
+            const imgData = ctx.getImageData(0, 0, bmp.width, bmp.height);
+            const code = jsQR(imgData.data, imgData.width, imgData.height);
+            if (code) decodedText = code.data;
+        }
+
+        if (decodedText) {
             $("statusBox").className = "status";
-            stepHandler()(code.data);
+            stepHandler()(decodedText);
         } else {
-            throw new Error("Không tìm thấy mã QR");
+            throw new Error("Không tìm thấy mã trong ảnh");
         }
     } catch (err) {
-        flash("Không đọc được mã QR trong ảnh. Vui lòng thử lại hoặc nhập tay.");
+        flash("Không đọc được mã trong ảnh. Vui lòng thử lại hoặc nhập tay.");
     }
 });
 
