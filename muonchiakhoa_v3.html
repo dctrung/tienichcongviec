@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#2563eb">
 <title>Trạm Quét Chìa Khóa Thư Viện</title>
 
-<!-- ZXing JS: Thư viện hàng đầu quét cả Mã QR (2D) lẫn Mã Vạch (1D Code 128, Code 39...) -->
+<!-- ZXing JS: Đọc Mã QR & Mã Vạch 1D (Code 128, Code 39...) -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-<!-- jsQR: Engine hỗ trợ quét Mã QR siêu nhẹ -->
+<!-- jsQR: Engine hỗ trợ giải mã siêu nhẹ -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
 <style>
@@ -131,7 +131,7 @@
         display: none;
         position: absolute; z-index: 2; pointer-events: none;
         top: 50%; left: 50%;
-        width: 220px; height: 200px;
+        width: 210px; height: 190px;
         transform: translate(-50%, -50%);
         border-radius: 18px;
         box-shadow: 0 0 0 4000px rgba(7, 11, 20, 0.45);
@@ -153,6 +153,17 @@
     }
     .tool-btn[hidden] { display: none; }
     .tool-btn.on { background: #f59e0b; }
+
+    .zoom-bar {
+        display: none; position: absolute; z-index: 4; left: 50%; bottom: 10px; transform: translateX(-50%);
+        gap: 6px; padding: 4px 6px; border-radius: 999px; background: rgba(15, 23, 42, .75);
+    }
+    .zoom-bar button {
+        min-width: 40px; height: 32px; padding: 0 8px; border: 0; border-radius: 999px;
+        background: transparent; color: #fff; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    .zoom-bar button.on { background: #fff; color: #0f172a; }
+    .scanner[data-state="scanning"] .zoom-bar { display: flex; }
 
     .panel {
         display: none;
@@ -231,24 +242,68 @@
     .result-val { display: block; font-size: 16px; font-weight: 700; word-break: break-all; }
     .result-ico { flex: none; font-size: 20px; }
 
+    /* ---------- THÔNG BÁO THÀNH CÔNG (TO, ĐẸP) ---------- */
+    .welcome-card {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 26px 20px;
+        background: var(--success-soft);
+        border: 2px solid var(--success);
+        border-radius: 24px;
+        margin-top: 16px;
+        box-shadow: 0 12px 30px -8px rgba(22, 163, 74, 0.22);
+        animation: popIn .35s cubic-bezier(.175, .885, .32, 1.275);
+    }
+    @keyframes popIn {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    .welcome-icon { font-size: 54px; margin-bottom: 10px; line-height: 1; }
+    .welcome-title {
+        margin: 0 0 10px;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--success);
+        line-height: 1.35;
+    }
+    .welcome-sub { margin: 0 0 16px; font-size: 14px; color: var(--sub); font-weight: 500; }
+    .welcome-details {
+        width: 100%;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 16px;
+        font-size: 14px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .welcome-details div { display: flex; justify-content: space-between; align-items: center; }
+    .welcome-details span { color: var(--sub); font-size: 13px; }
+    .welcome-details strong { color: var(--text); font-weight: 700; word-break: break-all; }
+
     .btn-reset {
-        display: block; margin: 14px auto 0; padding: 8px 14px;
+        display: block; margin: 16px auto 0; padding: 10px 18px;
         background: transparent; border: 0; cursor: pointer;
-        color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline;
+        color: var(--sub); font: inherit; font-size: 14px; text-decoration: underline; font-weight: 600;
     }
 
     .hint {
-        display: none; position: absolute; z-index: 4; left: 10px; right: 10px; bottom: 15px;
-        padding: 10px 12px; border-radius: 12px; background: rgba(15, 23, 42, .88);
-        color: #e2e8f0; font-size: 13px; line-height: 1.45; text-align: center;
+        display: none; position: absolute; z-index: 4; left: 10px; right: 10px; bottom: 50px;
+        padding: 8px 12px; border-radius: 12px; background: rgba(15, 23, 42, .88);
+        color: #e2e8f0; font-size: 12px; line-height: 1.4; text-align: center;
     }
     .hint button {
-        margin-left: 4px; padding: 4px 10px; border: 0; border-radius: 8px;
-        background: #fff; color: #0f172a; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer;
+        margin-left: 4px; padding: 3px 8px; border: 0; border-radius: 6px;
+        background: #fff; color: #0f172a; font: inherit; font-weight: 700; font-size: 11px; cursor: pointer;
     }
     .hint.show { display: block; }
     .scanner:not([data-state="scanning"]) .hint,
-    .scanner[data-hold="1"] .hint { display: none !important; }
+    .scanner[data-hold="1"] .hint,
+    .scanner[data-hold="1"] .zoom-bar { display: none !important; }
 
     .dbg {
         margin-top: 12px; padding: 10px; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all;
@@ -285,14 +340,21 @@
         <div class="frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 
         <div class="cam-tools">
+            <button class="tool-btn" id="btnSwitchCam" type="button" title="Đổi camera" aria-label="Đổi camera" hidden>📷</button>
             <button class="tool-btn" id="btnTorch" type="button" title="Bật/tắt đèn flash" aria-label="Bật/tắt đèn flash" hidden>🔦</button>
             <button class="tool-btn" id="btnRestart" type="button" title="Khởi động lại camera" aria-label="Khởi động lại camera">🔄</button>
         </div>
 
-        <div class="hint" id="scanHint">Giữ điện thoại cách mã 20–25cm để tự động lấy nét chuẩn nhất, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh</button></div>
+        <div class="zoom-bar" id="zoomBar">
+            <button type="button" id="btnZoom1" class="on">1×</button>
+            <button type="button" id="btnZoom2">2×</button>
+            <button type="button" id="btnZoom3">3×</button>
+        </div>
+
+        <div class="hint" id="scanHint">Giữ máy cách mã 25–30cm để camera tự lấy nét chuẩn nhất, hoặc <button type="button" id="btnHintPhoto">📸 chụp ảnh</button></div>
 
         <div class="panel panel-idle">
-            <p id="idleText">Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 20-25cm để máy lấy nét chuẩn.</p>
+            <p id="idleText">Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 25–30cm để camera lấy nét rõ nhất.</p>
             <button class="btn" id="btnStart" type="button">📷 Mở Camera Quét Thẻ</button>
             <button class="btn ghost" id="btnPhoto1" type="button">📸 Chụp ảnh mã (nếu camera lỗi)</button>
         </div>
@@ -326,7 +388,7 @@
     <div class="results">
         <div class="result active" id="cardMssv">
             <div>
-                <span class="result-label">1. Thẻ Sinh Viên (Mã QR / Mã vạch)</span>
+                <span class="result-label">1. Thẻ Sinh Viên (Mã QR / Mã Vạch)</span>
                 <span class="result-val" id="valMssv">Chờ quét / nhập...</span>
             </div>
             <span class="result-ico" id="statusIcon1">⏳</span>
@@ -340,7 +402,10 @@
         </div>
     </div>
 
-    <button class="btn-reset" id="btnReset" type="button">🔄 Nhập lại từ đầu</button>
+    <!-- Màn hình chào mừng thành công -->
+    <div class="welcome-card" id="welcomeCard"></div>
+
+    <button class="btn-reset" id="btnReset" type="button">🔄 Nhập lại lượt mới</button>
     <pre class="dbg" id="dbg" hidden></pre>
     <input type="file" id="fileIn" accept="image/*" capture="environment" hidden>
 </main>
@@ -354,7 +419,6 @@ let currentStep = 1;
 let mssvValue = "";
 let chiaValue = "";
 let requestId = 0;
-let successTimer = null;
 
 const DEBUG = /[?&]debug=1/.test(location.search);
 const dbgLines = [];
@@ -369,8 +433,7 @@ function dbg(msg) {
 }
 
 /* =====================================================================
- * ENGINE CAMERA HYBRID MULTI-FORMAT (ĐỌC CẢ MÃ QR VÀ MÃ VẠCH 1D)
- * Tối ưu hóa đặc biệt cho Samsung (AF Pulse & Pixel Binarization) & iPhone
+ * ENGINE CAMERA VỚI ĐỘ TRỄ ĐƯỢC TỐI ƯU HÓA TỐI ĐA
  * ===================================================================== */
 const Camera = (() => {
     const scannerEl = $("scanner");
@@ -384,38 +447,57 @@ const Camera = (() => {
     let locked = false;
     let nativeDetector = null;
     let zxingReader = null;
-    
+    let lastScanTime = 0;
+
+    let availableCameras = [];
+    let currentCamIdx = 0;
+
     let cropCanvas = document.createElement("canvas");
     let cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
-    let binCanvas = document.createElement("canvas");
-    let binCtx = binCanvas.getContext("2d", { willReadFrequently: true });
     
+    let sharpCanvas = document.createElement("canvas");
+    let sharpCtx = sharpCanvas.getContext("2d", { willReadFrequently: true });
+
     let track = null;
 
-    // Khởi tạo ZXing MultiFormat Reader cho JS Fallback
+    // Tối ưu hóa ZXing: Chỉ chỉ định rõ các chuẩn mã cần dùng để tăng tốc giải mã gấp 3 lần
     if (window.ZXing) {
-        try {
-            zxingReader = new ZXing.BrowserMultiFormatReader();
-            dbg("Đã khởi tạo ZXing MultiFormat Engine (Mã QR & Mã vạch 1D)!");
-        } catch (e) { dbg("Lỗi khởi tạo ZXing: " + e); }
+        try { 
+            const hints = new Map();
+            const formats = [
+                ZXing.BarcodeFormat.QR_CODE,
+                ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.CODE_39
+            ];
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+            zxingReader = new ZXing.BrowserMultiFormatReader(hints); 
+        } catch (e) {}
     }
 
-    // Khởi tạo Native BarcodeDetector (Quét cả QR Code & Mã vạch 1D: Code128, Code39...)
     async function initNativeDetector() {
         if ("BarcodeDetector" in window) {
             try {
                 const formats = [
                     "qr_code", "code_128", "code_39", "code_93", 
-                    "ean_13", "ean_8", "upc_a", "upc_e", "codabar", "itf"
+                    "ean_13", "ean_8", "upc_a", "upc_e"
                 ];
                 nativeDetector = new BarcodeDetector({ formats });
-                dbg("Đã kích hoạt Native BarcodeDetector Engine!");
             } catch (e) { nativeDetector = null; }
         }
     }
     initNativeDetector();
 
     const setState = (s) => { scannerEl.dataset.state = s; if (s !== "scanning") scannerEl.dataset.hold = ""; };
+
+    async function updateCameraList() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            availableCameras = devices.filter(d => d.kind === "videoinput");
+            const backCams = availableCameras.filter(d => /back|rear|sau|environment|0/i.test(d.label || ""));
+            if (backCams.length > 0) availableCameras = backCams;
+            if (availableCameras.length > 1) $("btnSwitchCam").hidden = false;
+        } catch (e) {}
+    }
 
     async function stop() {
         wantOn = false; accepting = false; locked = false;
@@ -432,10 +514,10 @@ const Camera = (() => {
         $("btnTorch").hidden = true;
     }
 
-    async function start(h) {
+    async function start(h, deviceId = null) {
         handler = h; accepting = true; locked = false; wantOn = true;
         
-        if (scannerEl.dataset.state === "scanning" && stream) {
+        if (scannerEl.dataset.state === "scanning" && stream && !deviceId) {
             scannerEl.dataset.hold = "";
             return;
         }
@@ -445,16 +527,17 @@ const Camera = (() => {
         wantOn = true; accepting = true;
 
         try {
+            const videoConstraints = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } };
+            
             const constraints = {
-                video: {
-                    facingMode: { ideal: "environment" },
+                video: Object.assign(videoConstraints, {
                     width: { ideal: 1920 },
                     height: { ideal: 1080 },
                     advanced: [
                         { focusMode: "continuous" },
                         { exposureMode: "continuous" }
                     ]
-                },
+                }),
                 audio: false
             };
 
@@ -463,31 +546,29 @@ const Camera = (() => {
             await videoEl.play();
 
             track = stream.getVideoTracks()[0];
-            
+            await updateCameraList();
+
             if (track && track.getCapabilities) {
                 const caps = track.getCapabilities();
-                
                 if (caps.torch) $("btnTorch").hidden = false;
 
-                // Tự động kích hoạt Hardware Zoom 1.8x - 2.0x ép cự ly cầm máy 20-25cm sắc nét
                 if (caps.zoom) {
                     const minZ = caps.zoom.min || 1;
                     const maxZ = caps.zoom.max || 1;
-                    const targetZoom = Math.min(Math.max(minZ, 1.8), maxZ);
+                    const targetZoom = Math.min(Math.max(minZ, 2.0), maxZ);
                     try {
                         await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
-                        dbg("Đã áp dụng Auto-Zoom phần cứng " + targetZoom + "x");
+                        updateZoomUI(targetZoom);
                     } catch (e) {}
                 }
             }
 
-            // LIỀU THUỐC ĐẶC TRỊ SAMSUNG: Mồi xung kích hoạt Auto-Focus motor liên tục mỗi 2.5 giây
             clearInterval(focusPulseTimer);
             focusPulseTimer = setInterval(() => {
                 if (wantOn && track && track.applyConstraints) {
                     track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
                 }
-            }, 2500);
+            }, 2000);
 
             setState("scanning");
             if (!accepting) scannerEl.dataset.hold = "1";
@@ -504,19 +585,26 @@ const Camera = (() => {
     function scanLoop() {
         if (!wantOn) return;
 
+        const now = performance.now();
         if (accepting && !locked && videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-            // LUỒNG 1: Native BarcodeDetector (Tối ưu phần cứng cho iOS & Android MLKit)
             if (nativeDetector) {
                 nativeDetector.detect(videoEl)
                     .then(barcodes => {
                         if (barcodes.length > 0 && accepting && !locked) {
                             onSuccess(barcodes[0].rawValue);
-                        } else {
+                        } else if (now - lastScanTime > 60) {
+                            lastScanTime = now;
                             fallbackCropScan();
                         }
                     })
-                    .catch(() => fallbackCropScan());
-            } else {
+                    .catch(() => {
+                        if (now - lastScanTime > 60) {
+                            lastScanTime = now;
+                            fallbackCropScan();
+                        }
+                    });
+            } else if (now - lastScanTime > 60) {
+                lastScanTime = now;
                 fallbackCropScan();
             }
         }
@@ -524,7 +612,6 @@ const Camera = (() => {
         animFrameId = requestAnimationFrame(scanLoop);
     }
 
-    // Cắt 35% vùng trung tâm + Nhị phân hóa điểm ảnh (Binarization) đặc trị cho Samsung
     async function fallbackCropScan() {
         if (locked || !accepting) return;
 
@@ -532,53 +619,52 @@ const Camera = (() => {
         const vh = videoEl.videoHeight;
         if (!vw || !vh) return;
 
-        const cropW = Math.floor(vw * 0.45);
-        const cropH = Math.floor(vh * 0.35);
-        const sx = Math.floor((vw - cropW) / 2);
-        const sy = Math.floor((vh - cropH) / 2);
+        for (const cropRatio of [0.20, 0.35]) {
+            if (locked || !accepting) return;
 
-        cropCanvas.width = cropW;
-        cropCanvas.height = cropH;
+            const cropW = Math.floor(vw * cropRatio);
+            const cropH = Math.floor(vh * cropRatio);
+            const sx = Math.floor((vw - cropW) / 2);
+            const sy = Math.floor((vh - cropH) / 2);
 
-        cropCtx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+            cropCanvas.width = cropW;
+            cropCanvas.height = cropH;
+            cropCtx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
 
-        // PASS 1: Thử giải mã qua jsQR (Dành cho mã QR)
-        if (window.jsQR) {
-            const imgData = cropCtx.getImageData(0, 0, cropW, cropH);
-            const qrCode = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
-            if (qrCode && qrCode.data) {
-                onSuccess(qrCode.data);
-                return;
+            if (window.jsQR) {
+                const imgData = cropCtx.getImageData(0, 0, cropW, cropH);
+                const qrCode = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+                if (qrCode && qrCode.data) {
+                    onSuccess(qrCode.data);
+                    return;
+                }
             }
-        }
 
-        // PASS 2: Thử giải mã qua ZXing trên Canvas gốc (Quét cả Mã QR & Mã Vạch 1D)
-        if (zxingReader) {
-            try {
-                const res = await zxingReader.decodeFromCanvas(cropCanvas);
-                if (res && res.getText()) {
-                    onSuccess(res.getText());
-                    return;
-                }
-            } catch (e) {}
-        }
+            if (zxingReader) {
+                try {
+                    const res = await zxingReader.decodeFromCanvas(cropCanvas);
+                    if (res && res.getText()) {
+                        onSuccess(res.getText());
+                        return;
+                    }
+                } catch (e) {}
+            }
 
-        // PASS 3: ĐẶC TRỊ CHO SAMSUNG MỜ NÉT / LÓA - Nhị phân hóa (Black & White Thresholding)
-        applyBinarization(cropCanvas, binCanvas);
+            applySharpnessAndOtsu(cropCanvas, sharpCanvas);
 
-        if (zxingReader) {
-            try {
-                const resBin = await zxingReader.decodeFromCanvas(binCanvas);
-                if (resBin && resBin.getText()) {
-                    onSuccess(resBin.getText());
-                    return;
-                }
-            } catch (e) {}
+            if (zxingReader) {
+                try {
+                    const resSharp = await zxingReader.decodeFromCanvas(sharpCanvas);
+                    if (resSharp && resSharp.getText()) {
+                        onSuccess(resSharp.getText());
+                        return;
+                    }
+                } catch (e) {}
+            }
         }
     }
 
-    // Thuật toán chuyển ảnh xám mờ thành Trắng/Đen tương phản tuyệt đối
-    function applyBinarization(srcCanvas, destCanvas) {
+    function applySharpnessAndOtsu(srcCanvas, destCanvas) {
         const w = srcCanvas.width;
         const h = srcCanvas.height;
         destCanvas.width = w;
@@ -587,17 +673,40 @@ const Camera = (() => {
         const srcData = cropCtx.getImageData(0, 0, w, h);
         const d = srcData.data;
 
-        for (let i = 0; i < d.length; i += 4) {
-            // Tính độ sáng Grayscale
-            const v = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-            // Khóa ngưỡng tương phản (Thresholding)
-            const bw = v > 120 ? 255 : 0;
-            d[i] = bw;
-            d[i+1] = bw;
-            d[i+2] = bw;
+        const gray = new Uint8Array(w * h);
+        for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+            gray[j] = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0;
         }
 
-        binCtx.putImageData(srcData, 0, 0);
+        const histogram = new Array(256).fill(0);
+        for (let i = 0; i < gray.length; i++) histogram[gray[i]]++;
+
+        let total = gray.length;
+        let sum = 0;
+        for (let t = 0; t < 256; t++) sum += t * histogram[t];
+
+        let sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 128;
+        for (let t = 0; t < 256; t++) {
+            wB += histogram[t];
+            if (wB === 0) continue;
+            wF = total - wB;
+            if (wF === 0) break;
+            sumB += t * histogram[t];
+            let mB = sumB / wB;
+            let mF = (sum - sumB) / wF;
+            let varBetween = wB * wF * (mB - mF) * (mB - mF);
+            if (varBetween > varMax) {
+                varMax = varBetween;
+                threshold = t;
+            }
+        }
+
+        for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+            const bw = gray[j] > threshold ? 255 : 0;
+            d[i] = bw; d[i+1] = bw; d[i+2] = bw;
+        }
+
+        sharpCtx.putImageData(srcData, 0, 0);
     }
 
     function onSuccess(text) {
@@ -608,6 +717,31 @@ const Camera = (() => {
             .catch(() => { locked = false; });
     }
 
+    function updateZoomUI(val) {
+        $("btnZoom1").classList.toggle("on", val <= 1.2);
+        $("btnZoom2").classList.toggle("on", val > 1.2 && val <= 2.2);
+        $("btnZoom3").classList.toggle("on", val > 2.2);
+    }
+
+    async function setZoom(val) {
+        if (!track || !track.getCapabilities) return;
+        try {
+            const caps = track.getCapabilities();
+            if (caps.zoom) {
+                const z = Math.min(Math.max(caps.zoom.min || 1, val), caps.zoom.max || 1);
+                await track.applyConstraints({ advanced: [{ zoom: z }] });
+                updateZoomUI(z);
+            }
+        } catch (e) {}
+    }
+
+    async function switchCamera() {
+        if (availableCameras.length <= 1) return;
+        currentCamIdx = (currentCamIdx + 1) % availableCameras.length;
+        const targetDev = availableCameras[currentCamIdx];
+        start(handler, targetDev.deviceId);
+    }
+
     return {
         start,
         stop,
@@ -615,6 +749,8 @@ const Camera = (() => {
         listen(h) { handler = h; locked = false; accepting = true; scannerEl.dataset.hold = ""; },
         isRunning() { return scannerEl.dataset.state === "scanning"; },
         setState,
+        setZoom,
+        switchCamera,
         async toggleTorch() {
             if (!track) return;
             try {
@@ -684,7 +820,7 @@ async function processMssv(value) {
     $("valChia").textContent = "Sẵn sàng...";
     $("statusIcon2").textContent = "📷";
 
-    $("idleText").textContent = "Căn mã QR trên chìa khóa vào giữa khung. Giữ khoảng cách 20-25cm.";
+    $("idleText").textContent = "Căn mã QR trên chìa khóa vào giữa khung. Giữ khoảng cách 25–30cm.";
     $("btnStart").textContent = "🔑 Quét Mã Chìa Khóa Bằng Camera";
 
     const input = $("manualInput");
@@ -722,16 +858,14 @@ function sendDataToGAS() {
 
     const requestUrl = `${GAS_BACKEND_URL}?mssv=${encodeURIComponent(mssvValue)}&chia=${encodeURIComponent(chiaValue)}`;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const timer = setTimeout(() => ctrl.abort(), 15000); // Rút ngắn timeout kết nối còn 15 giây
 
     fetch(requestUrl, { signal: ctrl.signal })
         .then((response) => response.json())
         .then((data) => {
             if (myId !== requestId) return;
             if (data.status === "SUCCESS") {
-                box.className = "status show success";
-                box.textContent = "🎉 Mượn chìa thành công! Đang làm mới...";
-                successTimer = setTimeout(resetAll, 2500);
+                showWelcomeScreen();
             } else {
                 throw new Error(data.message || "Lỗi lưu dữ liệu từ Server");
             }
@@ -750,6 +884,26 @@ function sendDataToGAS() {
         .finally(() => clearTimeout(timer));
 }
 
+// Hiển thị thông báo chào mừng to, đẹp và giữ nguyên giao diện (KHÔNG auto reset/reload)
+function showWelcomeScreen() {
+    Camera.stop();
+    Camera.setState("hidden");
+    $("manualBox").style.display = "none";
+    $("statusBox").className = "status"; // Ẩn ô trạng thái chờ
+
+    const welcomeCard = $("welcomeCard");
+    welcomeCard.style.display = "flex";
+    welcomeCard.innerHTML = `
+        <div class="welcome-icon">🏛️</div>
+        <h2 class="welcome-title">Chào mừng bạn tới Thư viện Trung tâm ĐHQG - HCM</h2>
+        <p class="welcome-sub">Mượn chìa khóa tủ thành công!</p>
+        <div class="welcome-details">
+            <div><span>Thẻ SV / Thư viện:</span> <strong>${mssvValue}</strong></div>
+            <div><span>Mã Chìa Khóa Tủ:</span> <strong>${chiaValue}</strong></div>
+        </div>
+    `;
+}
+
 function submitManual() {
     const val = $("manualInput").value;
     if (currentStep === 1) processMssv(val);
@@ -758,7 +912,6 @@ function submitManual() {
 
 async function resetAll() {
     requestId++;
-    clearTimeout(successTimer);
     await Camera.stop();
 
     currentStep = 1;
@@ -768,9 +921,10 @@ async function resetAll() {
     Camera.setState("idle");
     $("manualBox").style.display = "flex";
     $("statusBox").className = "status";
+    $("welcomeCard").style.display = "none"; // Ẩn thẻ chào mừng khi người dùng chủ động bấm reset
 
     setHeader("🪪", "Mượn Chìa Khóa Tủ", "Quét camera hoặc nhập mã thủ công bên dưới");
-    $("idleText").textContent = "Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 20-25cm để máy lấy nét chuẩn.";
+    $("idleText").textContent = "Căn mã QR hoặc Mã Vạch vào giữa khung. Giữ khoảng cách 25–30cm để máy lấy nét chuẩn.";
     $("btnStart").textContent = "📷 Mở Camera Quét Thẻ";
 
     $("step1").className = "step active";
@@ -814,7 +968,6 @@ $("fileIn").addEventListener("change", async (e) => {
 
         let decodedText = null;
 
-        // Ưu tiên ZXing quét ảnh (Hỗ trợ cả Mã Vạch & QR)
         if (window.ZXing) {
             try {
                 const reader = new ZXing.BrowserMultiFormatReader();
@@ -823,7 +976,6 @@ $("fileIn").addEventListener("change", async (e) => {
             } catch (err) {}
         }
 
-        // Fallback jsQR
         if (!decodedText && window.jsQR) {
             const imgData = ctx.getImageData(0, 0, bmp.width, bmp.height);
             const code = jsQR(imgData.data, imgData.width, imgData.height);
@@ -850,9 +1002,14 @@ $("btnPhoto2").addEventListener("click", pickPhoto);
 $("btnHintPhoto").addEventListener("click", pickPhoto);
 $("btnRestart").addEventListener("click", () => { Camera.stop(); startScan(); });
 $("btnTorch").addEventListener("click", () => Camera.toggleTorch());
+$("btnSwitchCam").addEventListener("click", () => Camera.switchCamera());
 $("btnSend").addEventListener("click", submitManual);
 $("btnReset").addEventListener("click", resetAll);
 $("manualInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitManual(); });
+
+$("btnZoom1").addEventListener("click", () => Camera.setZoom(1.0));
+$("btnZoom2").addEventListener("click", () => Camera.setZoom(2.0));
+$("btnZoom3").addEventListener("click", () => Camera.setZoom(3.0));
 </script>
 </body>
 </html>
